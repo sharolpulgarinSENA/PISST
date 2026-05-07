@@ -6,7 +6,7 @@ psycopg2-binary
 passlib[bcrypt]
 python-jose[cryptography]
 slowapi
-anthropic
+google-generativeai
 reportlab
 python-dotenv
 pydantic[email]
