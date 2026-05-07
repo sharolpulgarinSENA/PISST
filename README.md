@@ -13,4 +13,5 @@ venv\Scripts\activate
 3. instalar dependencias 
 pip install -r requirements.txt
 
-4. 
+4. iniciar el servidor
+uvicorn main:app --reload
