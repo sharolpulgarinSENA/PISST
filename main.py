@@ -2,6 +2,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from app.routers import auth_router
 
 load_dotenv()
 
@@ -11,6 +15,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # CORS: permite que el frontend llame a esta API desde otro dominio
 app.add_middleware(
     CORSMiddleware,
@@ -19,6 +27,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(auth_router.router)
 
 # Endpoint de prueba para verificar que la API está viva
 @app.get("/", tags=["Health"])
