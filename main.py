@@ -6,6 +6,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from app.routers import auth_router
+from app.routers import chat_router
 
 load_dotenv()
 
@@ -27,7 +28,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 app.include_router(auth_router.router)
+app.include_router(chat_router.router)
 
 # Endpoint de prueba para verificar que la API está viva
 @app.get("/", tags=["Health"])
