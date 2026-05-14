@@ -8,3 +8,7 @@ from app.models.lesion import Lesion
 from app.models.testigo import Testigo
 from app.models.investigacion import Investigacion
 from app.models.accion_correctiva import AccionCorrectiva
+from app.models.capacitacion import (
+    Capacitacion, SesionCapacitacion,
+    Asistencia, Evaluacion, Pregunta, RespuestaEmpleado
+)
