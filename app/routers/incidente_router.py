@@ -19,8 +19,6 @@ from app.services import furat_service
 router = APIRouter(prefix="/incidentes", tags=["Incidentes"])
 
 
-# ── Incidentes ────────────────────────────────────────────────────
-
 @router.get("/")
 def listar_incidentes(
     estado: Optional[str] = None,
@@ -40,7 +38,7 @@ def crear_incidente(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Crea un nuevo reporte de incidente. Accesible para SST y Empleados."""
+    """Crea un nuevo reporte de incidente."""
     return incidente_service.create_incidente(
         db, datos, current_user.empresa_id, current_user.id
     )
@@ -102,8 +100,6 @@ def descargar_furat(
     )
 
 
-# ── Investigación ─────────────────────────────────────────────────
-
 @router.post("/{incidente_id}/investigacion", status_code=201)
 def crear_investigacion(
     incidente_id: UUID,
@@ -117,11 +113,27 @@ def crear_investigacion(
     )
 
 
-# ── Acciones Correctivas ──────────────────────────────────────────
-
 @router.post("/{incidente_id}/acciones", status_code=201)
 def crear_accion_correctiva(
     incidente_id: UUID,
     datos: AccionCorrectivaCreate,
     db: Session = Depends(get_db),
-    current
+    current_user: User = Depends(require_role("sst"))
+):
+    """Crea una acción correctiva para un incidente."""
+    return incidente_service.create_accion_correctiva(
+        db, incidente_id, current_user.empresa_id, datos
+    )
+
+
+@router.patch("/acciones/{accion_id}")
+def actualizar_accion_correctiva(
+    accion_id: UUID,
+    datos: AccionCorrectivaUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst"))
+):
+    """No permite cerrar sin evidencia documentada."""
+    return incidente_service.update_accion_correctiva(
+        db, accion_id, current_user.empresa_id, datos
+    )
