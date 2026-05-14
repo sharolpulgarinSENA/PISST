@@ -9,6 +9,7 @@ from app.routers import auth_router
 from app.routers import chat_router
 from app.routers import incidente_router
 from app.routers import capacitacion_router
+from app.routers import metricas_router
 
 load_dotenv()
 
@@ -35,6 +36,7 @@ app.include_router(auth_router.router)
 app.include_router(chat_router.router)
 app.include_router(incidente_router.router)
 app.include_router(capacitacion_router.router)
+app.include_router(metricas_router.router)
 
 # Endpoint de prueba para verificar que la API está viva
 @app.get("/", tags=["Health"])
