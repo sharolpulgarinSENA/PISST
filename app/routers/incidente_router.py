@@ -1,4 +1,6 @@
 # app/routers/incidente_router.py
+from fastapi.responses import Response
+from app.services import furat_service
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -138,4 +140,30 @@ def actualizar_accion_correctiva(
     """
     return incidente_service.update_accion_correctiva(
         db, accion_id, current_user.empresa_id, datos
+    )
+
+from fastapi.responses import Response
+from app.services import furat_service
+
+# Agregar este endpoint al final
+@router.get("/{incidente_id}/furat")
+def descargar_furat(
+    incidente_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst"))
+):
+    """
+    Genera y descarga el FURAT en PDF.
+    Solo el Encargado SST puede generar el FURAT.
+    """
+    pdf_bytes = furat_service.generar_furat(
+        db, incidente_id, current_user.empresa_id
+    )
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=FURAT_{incidente_id}.pdf"
+        }
     )
