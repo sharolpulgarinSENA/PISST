@@ -1,4 +1,5 @@
 # main.py
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -25,10 +26,17 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS: permite que el frontend llame a esta API desde otro dominio
+# CORS: permite que el frontend llame a esta API
+origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://pisst-frontend.vercel.app",
+    os.getenv("FRONTEND_URL", ""),
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # URL del frontend en desarrollo
+    allow_origins=[o for o in origins if o],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,7 +50,6 @@ app.include_router(metricas_router.router)
 app.include_router(riesgo_router.router)
 app.include_router(auditoria_router.router)
 
-# Endpoint de prueba para verificar que la API está viva
 @app.get("/", tags=["Health"])
 def health_check():
     return {"status": "ok", "proyecto": "PISST", "version": "1.0.0"}
