@@ -12,3 +12,5 @@ from app.models.capacitacion import (
     Capacitacion, SesionCapacitacion,
     Asistencia, Evaluacion, Pregunta, RespuestaEmpleado
 )
+from app.models.riesgo import Peligro, EvaluacionRiesgo, MedidaControl
+from app.models.auditoria import Auditoria, Hallazgo, NoConformidad
