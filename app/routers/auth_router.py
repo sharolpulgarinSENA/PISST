@@ -14,11 +14,10 @@ from app.models.user import User, RoleEnum
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
-# Rate limiter: limita las peticiones por IP
 limiter = Limiter(key_func=get_remote_address)
 
 
-# ── Schemas (modelos de datos de entrada y salida) ────────────────
+# ── Schemas ──────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -51,11 +50,10 @@ class ResetPasswordRequest(BaseModel):
 async def validar_recaptcha(token: str) -> bool:
     """
     Valida el token reCAPTCHA con la API de Google.
-    Retorna True si es válido, False si no.
-    En desarrollo se puede omitir con ENVIRONMENT=development.
+    En development se omite la validación.
     """
     if os.getenv("ENVIRONMENT") == "development":
-        return True  # omitir validación en desarrollo local
+        return True
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -78,26 +76,20 @@ async def login(
     db: Session = Depends(get_db)
 ):
     """
-    Recibe email y contraseña, verifica credenciales
-    y retorna un token JWT si son correctas.
+    Verifica credenciales y retorna JWT.
     Máximo 5 intentos por minuto por IP.
     """
-    # 1. Validar reCAPTCHA
     if not await validar_recaptcha(datos.recaptcha_token):
         raise HTTPException(status_code=400, detail="reCAPTCHA inválido")
 
-    # 2. Buscar usuario por email
     user = db.query(User).filter(
         User.email == datos.email,
         User.activo == True
     ).first()
 
-    # 3. Verificar contraseña
-    # Nota: el mensaje es genérico para no revelar si el email existe
     if not user or not verify_password(datos.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
-    # 4. Crear y retornar el JWT
     token = create_access_token({
         "sub": str(user.id),
         "role": user.role.value
@@ -116,15 +108,11 @@ def register(
     db: Session = Depends(get_db)
 ):
     """
-    Crea un nuevo usuario en el sistema.
-    Verifica que el email no esté duplicado.
-    Hashea la contraseña antes de guardarla.
+    Crea un nuevo usuario. Hashea la contraseña antes de guardar.
     """
-    # Verificar que el email no existe
     if db.query(User).filter(User.email == datos.email).first():
         raise HTTPException(status_code=400, detail="El email ya está registrado")
 
-    # Crear el usuario con la contraseña hasheada
     nuevo_usuario = User(
         nombre=datos.nombre,
         email=datos.email,
@@ -143,28 +131,45 @@ def forgot_password(
     db: Session = Depends(get_db)
 ):
     """
-    Genera un token de recuperación y lo guarda en la BD.
-    En producción enviaría el correo con el enlace de reset.
+    Genera un token de recuperación y envía el correo
+    con el enlace de reset via Resend.
+    Siempre retorna el mismo mensaje para no revelar
+    si el email existe o no en el sistema.
     """
-    user = db.query(User).filter(User.email == datos.email).first()
+    from app.services.email_service import enviar_correo_reset
 
-    # Siempre retornar el mismo mensaje para no revelar
-    # si el email existe o no en el sistema
+    mensaje_generico = {
+        "mensaje": "Si el correo existe recibirás un enlace de recuperación en los próximos minutos"
+    }
+
+    user = db.query(User).filter(
+        User.email == datos.email,
+        User.activo == True
+    ).first()
+
     if not user:
-        return {"mensaje": "Si el correo existe recibirás un enlace de recuperación"}
+        return mensaje_generico
 
-    # Generar token aleatorio seguro
+    # Generar token seguro
     token = secrets.token_urlsafe(32)
     user.reset_token = token
     user.reset_token_expira = datetime.utcnow() + timedelta(minutes=30)
     db.commit()
 
-    # TODO Sprint 2: enviar correo con SendGrid
-    # Por ahora retornamos el token directo para pruebas
-    return {
-        "mensaje": "Token de recuperación generado",
-        "token": token  # quitar esto en producción
-    }
+    # Enviar correo real con Resend
+    enviado = enviar_correo_reset(
+        email_destino=user.email,
+        nombre=user.nombre,
+        token=token
+    )
+
+    if enviado:
+        return mensaje_generico
+    else:
+        raise HTTPException(
+            status_code=500,
+            detail="Error al enviar el correo. Intenta de nuevo más tarde."
+        )
 
 
 @router.post("/reset-password")
@@ -173,8 +178,8 @@ def reset_password(
     db: Session = Depends(get_db)
 ):
     """
-    Recibe el token de recuperación y la nueva contraseña.
-    Valida que el token no haya expirado y actualiza el hash.
+    Valida el token y actualiza la contraseña.
+    El token expira en 30 minutos.
     """
     user = db.query(User).filter(
         User.reset_token == datos.token
@@ -186,10 +191,10 @@ def reset_password(
     if user.reset_token_expira < datetime.utcnow():
         raise HTTPException(status_code=400, detail="Token expirado")
 
-    # Actualizar la contraseña
     user.password_hash = get_password_hash(datos.new_password)
     user.reset_token = None
     user.reset_token_expira = None
     db.commit()
 
     return {"mensaje": "Contraseña actualizada exitosamente"}
+
