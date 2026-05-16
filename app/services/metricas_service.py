@@ -11,20 +11,12 @@ from app.models.user import User
 
 
 def get_kpis(db: Session, empresa_id: UUID):
-    """
-    Calcula los KPIs principales del SG-SST.
-    Tasa de Accidentalidad = (N° accidentes / N° trabajadores) x 100
-    Índice de Frecuencia  = (N° accidentes / horas trabajadas) x 1.000.000
-    Índice de Severidad   = (días perdidos / horas trabajadas) x 1.000.000
-    """
-    # Total de trabajadores activos
     total_trabajadores = db.query(User).filter(
         User.empresa_id == empresa_id,
         User.activo == True,
         User.role == "empleado"
     ).count()
 
-    # Total de accidentes del año actual
     inicio_anio = datetime(datetime.utcnow().year, 1, 1)
     total_accidentes = db.query(Incidente).filter(
         Incidente.empresa_id == empresa_id,
@@ -32,7 +24,6 @@ def get_kpis(db: Session, empresa_id: UUID):
         Incidente.fecha >= inicio_anio
     ).count()
 
-    # Días perdidos por incapacidad
     from app.models.lesion import Lesion
     dias_perdidos_result = db.query(func.sum(Lesion.incapacidad_dias))\
         .join(Incidente, Lesion.incidente_id == Incidente.id)\
@@ -42,11 +33,12 @@ def get_kpis(db: Session, empresa_id: UUID):
         ).scalar()
     dias_perdidos = dias_perdidos_result or 0
 
-    # Horas trabajadas estimadas (trabajadores x 8 horas x días laborables)
     dias_transcurridos = (datetime.utcnow() - inicio_anio).days
-    horas_trabajadas = total_trabajadores * 8 * dias_transcurridos if total_trabajadores > 0 else 1
 
-    # Cálculos
+    # ✅ Fix Bug #5 — División por cero el 1 de enero
+    horas_trabajadas = total_trabajadores * 8 * dias_transcurridos
+    horas_trabajadas = horas_trabajadas if horas_trabajadas > 0 else 1
+
     tasa_accidentalidad = round((total_accidentes / total_trabajadores) * 100, 2) \
         if total_trabajadores > 0 else 0
     indice_frecuencia = round((total_accidentes / horas_trabajadas) * 1000000, 2) \
@@ -65,32 +57,24 @@ def get_kpis(db: Session, empresa_id: UUID):
 
 
 def get_dashboard_gerencia(db: Session, empresa_id: UUID):
-    """
-    Resumen ejecutivo para el rol Gerencia.
-    Solo lectura — sin datos sensibles.
-    """
     kpis = get_kpis(db, empresa_id)
 
-    # Incidentes activos (no cerrados)
     incidentes_activos = db.query(Incidente).filter(
         Incidente.empresa_id == empresa_id,
         Incidente.estado != EstadoIncidenteEnum.cerrado
     ).count()
 
-    # Incidentes del último mes
     hace_un_mes = datetime.utcnow() - timedelta(days=30)
     incidentes_ultimo_mes = db.query(Incidente).filter(
         Incidente.empresa_id == empresa_id,
         Incidente.fecha_creacion >= hace_un_mes
     ).count()
 
-    # Capacitaciones activas
     total_capacitaciones = db.query(Capacitacion).filter(
         Capacitacion.empresa_id == empresa_id,
         Capacitacion.activo == True
     ).count()
 
-    # Acciones correctivas vencidas
     acciones_vencidas = db.query(AccionCorrectiva)\
         .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)\
         .filter(
@@ -99,8 +83,6 @@ def get_dashboard_gerencia(db: Session, empresa_id: UUID):
             AccionCorrectiva.fecha_limite < datetime.utcnow()
         ).count()
 
-    # Calcular % cumplimiento SG-SST
-    # Basado en: acciones completadas vs total
     total_acciones = db.query(AccionCorrectiva)\
         .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)\
         .filter(Incidente.empresa_id == empresa_id).count()
@@ -126,16 +108,12 @@ def get_dashboard_gerencia(db: Session, empresa_id: UUID):
 
 
 def get_alertas(db: Session, empresa_id: UUID):
-    """
-    Retorna alertas activas para el Encargado SST.
-    """
     alertas = []
 
-    # Incidentes sin investigación abierta
     sin_investigacion = db.query(Incidente).filter(
         Incidente.empresa_id == empresa_id,
         Incidente.estado == "abierto",
-        Incidente.investigacion == None
+        Incidente.investigacion.is_(None)  # ✅ Fix — usar is_(None) en SQLAlchemy
     ).count()
 
     if sin_investigacion > 0:
@@ -146,7 +124,6 @@ def get_alertas(db: Session, empresa_id: UUID):
             "url_destino": "/incidentes?estado=abierto"
         })
 
-    # Acciones correctivas vencidas
     acciones_vencidas = db.query(AccionCorrectiva)\
         .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)\
         .filter(
@@ -163,7 +140,6 @@ def get_alertas(db: Session, empresa_id: UUID):
             "url_destino": "/acciones-correctivas"
         })
 
-    # Acciones próximas a vencer (en los próximos 7 días)
     proxima_semana = datetime.utcnow() + timedelta(days=7)
     acciones_proximas = db.query(AccionCorrectiva)\
         .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)\
@@ -184,6 +160,7 @@ def get_alertas(db: Session, empresa_id: UUID):
 
     return {"total_alertas": len(alertas), "alertas": alertas}
 
+
 # ── Reportes ejecutivos ───────────────────────────────────────────
 
 def generar_reporte_pdf(db: Session, empresa_id: UUID, periodo: str):
@@ -193,7 +170,7 @@ def generar_reporte_pdf(db: Session, empresa_id: UUID, periodo: str):
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.enums import TA_CENTER
 
     dashboard = get_dashboard_gerencia(db, empresa_id)
     kpis = dashboard["kpis"]
@@ -227,7 +204,6 @@ def generar_reporte_pdf(db: Session, empresa_id: UUID, periodo: str):
         Paragraph("KPIs de Seguridad", est('t5', 14, '#1E3A5F', bold=True, after=12)),
     ]
 
-    # Tabla de KPIs
     data_kpis = [
         ["Indicador", "Valor"],
         ["Total Trabajadores", str(kpis["total_trabajadores"])],
@@ -256,7 +232,6 @@ def generar_reporte_pdf(db: Session, empresa_id: UUID, periodo: str):
     contenido.append(Spacer(1, 0.3 * inch))
     contenido.append(Paragraph("Resumen Ejecutivo", est('t6', 14, '#1E3A5F', bold=True, after=12)))
 
-    # Tabla resumen
     data_resumen = [
         ["Métrica", "Valor"],
         ["Cumplimiento SG-SST", f"{dashboard['cumplimiento_sgsst']}%"],
@@ -304,10 +279,8 @@ def generar_reporte_excel(db: Session, empresa_id: UUID, periodo: str):
     ws = wb.active
     ws.title = "Reporte PISST"
 
-    # Estilos
     azul_navy = "1E3A5F"
     azul_btn = "1d4ed8"
-    gris = "F1EFE8"
 
     header_font = Font(name='Calibri', bold=True, color="FFFFFF", size=12)
     title_font = Font(name='Calibri', bold=True, color=azul_navy, size=16)
@@ -320,12 +293,10 @@ def generar_reporte_excel(db: Session, empresa_id: UUID, periodo: str):
     fill_blanco = PatternFill("solid", fgColor="FFFFFF")
 
     center = Alignment(horizontal='center', vertical='center')
-    left = Alignment(horizontal='left', vertical='center')
 
     thin = Side(style='thin', color="DDDDDD")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    # Título
     ws.merge_cells('A1:C1')
     ws['A1'] = "PISST — Reporte Ejecutivo"
     ws['A1'].font = title_font
@@ -338,12 +309,10 @@ def generar_reporte_excel(db: Session, empresa_id: UUID, periodo: str):
 
     ws.append([])
 
-    # KPIs
     ws.append(["KPIs de Seguridad", "", ""])
     ws[f'A{ws.max_row}'].font = sub_font
 
-    headers_kpi = ["Indicador", "Valor", ""]
-    ws.append(headers_kpi)
+    ws.append(["Indicador", "Valor", ""])
     for col in range(1, 3):
         cell = ws.cell(row=ws.max_row, column=col)
         cell.fill = fill_navy
@@ -372,12 +341,10 @@ def generar_reporte_excel(db: Session, empresa_id: UUID, periodo: str):
 
     ws.append([])
 
-    # Resumen ejecutivo
     ws.append(["Resumen Ejecutivo", "", ""])
     ws[f'A{ws.max_row}'].font = sub_font
 
-    headers_res = ["Métrica", "Valor", ""]
-    ws.append(headers_res)
+    ws.append(["Métrica", "Valor", ""])
     for col in range(1, 3):
         cell = ws.cell(row=ws.max_row, column=col)
         cell.fill = fill_azul
@@ -403,7 +370,6 @@ def generar_reporte_excel(db: Session, empresa_id: UUID, periodo: str):
             cell.alignment = center
             cell.border = border
 
-    # Anchos de columna
     ws.column_dimensions['A'].width = 35
     ws.column_dimensions['B'].width = 20
     ws.column_dimensions['C'].width = 5
