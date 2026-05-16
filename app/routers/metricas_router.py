@@ -44,3 +44,48 @@ def obtener_alertas(
     Incidentes sin investigación, acciones vencidas y próximas a vencer.
     """
     return metricas_service.get_alertas(db, current_user.empresa_id)
+
+@router.get("/reporte-pdf")
+def descargar_reporte_pdf(
+    periodo: str = "mensual",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst", "gerencia"))
+):
+    """
+    Descarga el reporte ejecutivo en PDF.
+    Parámetro periodo: mensual, trimestral, anual.
+    """
+    from fastapi.responses import StreamingResponse
+
+    buffer = metricas_service.generar_reporte_pdf(db, current_user.empresa_id, periodo)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=reporte_pisst_{periodo}.pdf"
+        }
+    )
+
+
+@router.get("/reporte-excel")
+def descargar_reporte_excel(
+    periodo: str = "mensual",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst", "gerencia"))
+):
+    """
+    Descarga el reporte ejecutivo en Excel.
+    Parámetro periodo: mensual, trimestral, anual.
+    """
+    from fastapi.responses import StreamingResponse
+
+    buffer = metricas_service.generar_reporte_excel(db, current_user.empresa_id, periodo)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename=reporte_pisst_{periodo}.xlsx"
+        }
+    )

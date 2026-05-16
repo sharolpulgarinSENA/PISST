@@ -183,3 +183,233 @@ def get_alertas(db: Session, empresa_id: UUID):
         })
 
     return {"total_alertas": len(alertas), "alertas": alertas}
+
+# ── Reportes ejecutivos ───────────────────────────────────────────
+
+def generar_reporte_pdf(db: Session, empresa_id: UUID, periodo: str):
+    from io import BytesIO
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, Table, TableStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+    dashboard = get_dashboard_gerencia(db, empresa_id)
+    kpis = dashboard["kpis"]
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter,
+                            rightMargin=inch, leftMargin=inch,
+                            topMargin=inch, bottomMargin=inch)
+    styles = getSampleStyleSheet()
+
+    def est(nombre, size, color, bold=False, align=TA_CENTER, after=10):
+        return ParagraphStyle(nombre, parent=styles['Normal'],
+                              fontSize=size,
+                              textColor=colors.HexColor(color),
+                              alignment=align,
+                              fontName='Helvetica-Bold' if bold else 'Helvetica',
+                              spaceAfter=after)
+
+    fecha_actual = datetime.utcnow().strftime("%d/%m/%Y")
+
+    contenido = [
+        Spacer(1, 0.2 * inch),
+        Paragraph("PISST", est('t1', 28, '#1E3A5F', bold=True, after=4)),
+        Paragraph("Plataforma Integral de Seguridad y Salud en el Trabajo",
+                  est('t2', 11, '#666666', after=4)),
+        Paragraph(f"Reporte Ejecutivo — Período: {periodo.capitalize()}",
+                  est('t3', 13, '#1d4ed8', bold=True, after=4)),
+        Paragraph(f"Generado el: {fecha_actual}", est('t4', 10, '#999999', after=16)),
+        HRFlowable(width="100%", thickness=1, color=colors.HexColor('#eeeeee')),
+        Spacer(1, 0.3 * inch),
+        Paragraph("KPIs de Seguridad", est('t5', 14, '#1E3A5F', bold=True, after=12)),
+    ]
+
+    # Tabla de KPIs
+    data_kpis = [
+        ["Indicador", "Valor"],
+        ["Total Trabajadores", str(kpis["total_trabajadores"])],
+        ["Total Accidentes", str(kpis["total_accidentes"])],
+        ["Días Perdidos", str(kpis["dias_perdidos"])],
+        ["Tasa de Accidentalidad", f"{kpis['tasa_accidentalidad']}%"],
+        ["Índice de Frecuencia", str(kpis["indice_frecuencia"])],
+        ["Índice de Severidad", str(kpis["indice_severidad"])],
+    ]
+
+    tabla_kpis = Table(data_kpis, colWidths=[3.5 * inch, 2.5 * inch])
+    tabla_kpis.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E3A5F')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F1EFE8'), colors.white]),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dddddd')),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+
+    contenido.append(tabla_kpis)
+    contenido.append(Spacer(1, 0.3 * inch))
+    contenido.append(Paragraph("Resumen Ejecutivo", est('t6', 14, '#1E3A5F', bold=True, after=12)))
+
+    # Tabla resumen
+    data_resumen = [
+        ["Métrica", "Valor"],
+        ["Cumplimiento SG-SST", f"{dashboard['cumplimiento_sgsst']}%"],
+        ["Incidentes Activos", str(dashboard["incidentes_activos"])],
+        ["Incidentes Último Mes", str(dashboard["incidentes_ultimo_mes"])],
+        ["Capacitaciones Activas", str(dashboard["total_capacitaciones"])],
+        ["Acciones Correctivas Vencidas", str(dashboard["acciones_vencidas"])],
+    ]
+
+    tabla_resumen = Table(data_resumen, colWidths=[3.5 * inch, 2.5 * inch])
+    tabla_resumen.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1d4ed8')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F1EFE8'), colors.white]),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dddddd')),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+
+    contenido.append(tabla_resumen)
+    contenido.append(Spacer(1, 0.4 * inch))
+    contenido.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#eeeeee')))
+    contenido.append(Spacer(1, 0.2 * inch))
+    contenido.append(Paragraph("PISST — Reporte generado automáticamente por el sistema.",
+                                est('t7', 9, '#999999', after=0)))
+
+    doc.build(contenido)
+    buffer.seek(0)
+    return buffer
+
+
+def generar_reporte_excel(db: Session, empresa_id: UUID, periodo: str):
+    from io import BytesIO
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+    dashboard = get_dashboard_gerencia(db, empresa_id)
+    kpis = dashboard["kpis"]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Reporte PISST"
+
+    # Estilos
+    azul_navy = "1E3A5F"
+    azul_btn = "1d4ed8"
+    gris = "F1EFE8"
+
+    header_font = Font(name='Calibri', bold=True, color="FFFFFF", size=12)
+    title_font = Font(name='Calibri', bold=True, color=azul_navy, size=16)
+    sub_font = Font(name='Calibri', bold=True, color=azul_btn, size=11)
+    normal_font = Font(name='Calibri', size=10)
+
+    fill_navy = PatternFill("solid", fgColor=azul_navy)
+    fill_azul = PatternFill("solid", fgColor=azul_btn)
+    fill_gris = PatternFill("solid", fgColor="F1EFE8")
+    fill_blanco = PatternFill("solid", fgColor="FFFFFF")
+
+    center = Alignment(horizontal='center', vertical='center')
+    left = Alignment(horizontal='left', vertical='center')
+
+    thin = Side(style='thin', color="DDDDDD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    # Título
+    ws.merge_cells('A1:C1')
+    ws['A1'] = "PISST — Reporte Ejecutivo"
+    ws['A1'].font = title_font
+    ws['A1'].alignment = center
+
+    ws.merge_cells('A2:C2')
+    ws['A2'] = f"Período: {periodo.capitalize()} | Generado: {datetime.utcnow().strftime('%d/%m/%Y')}"
+    ws['A2'].font = Font(name='Calibri', color="666666", size=10)
+    ws['A2'].alignment = center
+
+    ws.append([])
+
+    # KPIs
+    ws.append(["KPIs de Seguridad", "", ""])
+    ws[f'A{ws.max_row}'].font = sub_font
+
+    headers_kpi = ["Indicador", "Valor", ""]
+    ws.append(headers_kpi)
+    for col in range(1, 3):
+        cell = ws.cell(row=ws.max_row, column=col)
+        cell.fill = fill_navy
+        cell.font = header_font
+        cell.alignment = center
+        cell.border = border
+
+    kpi_rows = [
+        ("Total Trabajadores", kpis["total_trabajadores"]),
+        ("Total Accidentes", kpis["total_accidentes"]),
+        ("Días Perdidos", kpis["dias_perdidos"]),
+        ("Tasa de Accidentalidad", f"{kpis['tasa_accidentalidad']}%"),
+        ("Índice de Frecuencia", kpis["indice_frecuencia"]),
+        ("Índice de Severidad", kpis["indice_severidad"]),
+    ]
+
+    for i, (indicador, valor) in enumerate(kpi_rows):
+        ws.append([indicador, valor, ""])
+        fill = fill_gris if i % 2 == 0 else fill_blanco
+        for col in range(1, 3):
+            cell = ws.cell(row=ws.max_row, column=col)
+            cell.fill = fill
+            cell.font = normal_font
+            cell.alignment = center
+            cell.border = border
+
+    ws.append([])
+
+    # Resumen ejecutivo
+    ws.append(["Resumen Ejecutivo", "", ""])
+    ws[f'A{ws.max_row}'].font = sub_font
+
+    headers_res = ["Métrica", "Valor", ""]
+    ws.append(headers_res)
+    for col in range(1, 3):
+        cell = ws.cell(row=ws.max_row, column=col)
+        cell.fill = fill_azul
+        cell.font = header_font
+        cell.alignment = center
+        cell.border = border
+
+    resumen_rows = [
+        ("Cumplimiento SG-SST", f"{dashboard['cumplimiento_sgsst']}%"),
+        ("Incidentes Activos", dashboard["incidentes_activos"]),
+        ("Incidentes Último Mes", dashboard["incidentes_ultimo_mes"]),
+        ("Capacitaciones Activas", dashboard["total_capacitaciones"]),
+        ("Acciones Vencidas", dashboard["acciones_vencidas"]),
+    ]
+
+    for i, (metrica, valor) in enumerate(resumen_rows):
+        ws.append([metrica, valor, ""])
+        fill = fill_gris if i % 2 == 0 else fill_blanco
+        for col in range(1, 3):
+            cell = ws.cell(row=ws.max_row, column=col)
+            cell.fill = fill
+            cell.font = normal_font
+            cell.alignment = center
+            cell.border = border
+
+    # Anchos de columna
+    ws.column_dimensions['A'].width = 35
+    ws.column_dimensions['B'].width = 20
+    ws.column_dimensions['C'].width = 5
+    ws.row_dimensions[1].height = 30
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
