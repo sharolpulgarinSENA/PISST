@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.core.security import get_password_hash, verify_password, create_access_token
+from app.core.deps import require_role
 from app.models.user import User, RoleEnum
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -48,10 +49,6 @@ class ResetPasswordRequest(BaseModel):
 # ── Función auxiliar ─────────────────────────────────────────────
 
 async def validar_recaptcha(token: str) -> bool:
-    """
-    Valida el token reCAPTCHA con la API de Google.
-    En development se omite la validación.
-    """
     if os.getenv("ENVIRONMENT") == "development":
         return True
 
@@ -105,19 +102,25 @@ async def login(
 @router.post("/register", status_code=201)
 def register(
     datos: RegisterRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst"))  # ✅ Fix Bug #2
 ):
     """
-    Crea un nuevo usuario. Hashea la contraseña antes de guardar.
+    Crea un nuevo usuario. Solo el Encargado SST puede registrar usuarios.
     """
     if db.query(User).filter(User.email == datos.email).first():
         raise HTTPException(status_code=400, detail="El email ya está registrado")
+
+    try:
+        role = RoleEnum(datos.role)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Rol inválido: {datos.role}")
 
     nuevo_usuario = User(
         nombre=datos.nombre,
         email=datos.email,
         password_hash=get_password_hash(datos.password),
-        role=datos.role,
+        role=role,  # ✅ Fix enum correcto
         empresa_id=datos.empresa_id
     )
     db.add(nuevo_usuario)
@@ -131,10 +134,8 @@ def forgot_password(
     db: Session = Depends(get_db)
 ):
     """
-    Genera un token de recuperación y envía el correo
-    con el enlace de reset via Resend.
-    Siempre retorna el mismo mensaje para no revelar
-    si el email existe o no en el sistema.
+    Genera un token de recuperación y envía el correo via Resend.
+    Siempre retorna el mismo mensaje para no revelar si el email existe.
     """
     from app.services.email_service import enviar_correo_reset
 
@@ -150,26 +151,22 @@ def forgot_password(
     if not user:
         return mensaje_generico
 
-    # Generar token seguro
     token = secrets.token_urlsafe(32)
     user.reset_token = token
     user.reset_token_expira = datetime.utcnow() + timedelta(minutes=30)
     db.commit()
 
-    # Enviar correo real con Resend
     enviado = enviar_correo_reset(
         email_destino=user.email,
         nombre=user.nombre,
         token=token
     )
 
-    if enviado:
-        return mensaje_generico
-    else:
-        raise HTTPException(
-            status_code=500,
-            detail="Error al enviar el correo. Intenta de nuevo más tarde."
-        )
+    # ✅ Fix Bug #4 — Siempre retornar mensaje genérico aunque falle el correo
+    if not enviado:
+        print(f"⚠️ Error enviando correo a {user.email} — token generado pero no enviado")
+
+    return mensaje_generico
 
 
 @router.post("/reset-password")
@@ -181,6 +178,13 @@ def reset_password(
     Valida el token y actualiza la contraseña.
     El token expira en 30 minutos.
     """
+    # ✅ Fix — Validar que la contraseña no esté vacía
+    if not datos.new_password or len(datos.new_password) < 6:
+        raise HTTPException(
+            status_code=400,
+            detail="La contraseña debe tener al menos 6 caracteres"
+        )
+
     user = db.query(User).filter(
         User.reset_token == datos.token
     ).first()
@@ -197,4 +201,3 @@ def reset_password(
     db.commit()
 
     return {"mensaje": "Contraseña actualizada exitosamente"}
-

@@ -169,6 +169,16 @@ def responder_evaluacion(db: Session, datos: ResponderEvaluacionRequest,
 
     db.commit()
 
+    # ✅ FIX Bug #1 — Persistir puntaje_final y aprobado en todas las respuestas
+    db.query(RespuestaEmpleado).filter(
+        RespuestaEmpleado.evaluacion_id == datos.evaluacion_id,
+        RespuestaEmpleado.empleado_id == empleado_id
+    ).update({
+        "puntaje_final": puntaje,
+        "aprobado": aprobado
+    })
+    db.commit()
+
     return {
         "evaluacion_id": datos.evaluacion_id,
         "empleado_id": empleado_id,
