@@ -1,4 +1,4 @@
-# main.py
+﻿# main.py
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +13,7 @@ from app.routers import capacitacion_router
 from app.routers import metricas_router
 from app.routers import riesgo_router
 from app.routers import auditoria_router
+from app.routers import usuario_router
 
 load_dotenv()
 
@@ -26,7 +27,6 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS: permite que el frontend llame a esta API
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
@@ -49,6 +49,7 @@ app.include_router(capacitacion_router.router)
 app.include_router(metricas_router.router)
 app.include_router(riesgo_router.router)
 app.include_router(auditoria_router.router)
+app.include_router(usuario_router.router)
 
 @app.get("/", tags=["Health"])
 def health_check():
