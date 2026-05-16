@@ -140,3 +140,28 @@ def responder_evaluacion(
     return capacitacion_service.responder_evaluacion(
         db, datos, current_user.id
     )
+
+# ── Certificados ──────────────────────────────────────────────────
+
+@router.get("/evaluaciones/{evaluacion_id}/certificado/{empleado_id}")
+def descargar_certificado(
+    evaluacion_id: UUID,
+    empleado_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Descarga el certificado PDF de aprobación de una evaluación.
+    Solo disponible si el empleado aprobó.
+    """
+    from fastapi.responses import StreamingResponse
+    
+    buffer = capacitacion_service.generar_certificado(db, evaluacion_id, empleado_id)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=certificado_{empleado_id}.pdf"
+        }
+    )
