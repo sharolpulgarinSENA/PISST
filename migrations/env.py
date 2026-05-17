@@ -19,10 +19,17 @@ load_dotenv()
 # Sin esto, Alembic no sabe a qué base de datos conectarse
 config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
 
-from app.models import Empresa, Area, Cargo, User, ChatHistorial
+from app.models import (
+    Empresa, Area, Cargo, User, ChatHistorial,
+    Incidente, Lesion, Testigo, Investigacion, AccionCorrectiva,
+    Capacitacion, SesionCapacitacion, Asistencia, Evaluacion, Pregunta, RespuestaEmpleado,
+    Peligro, EvaluacionRiesgo, MedidaControl,
+    Auditoria, Hallazgo, NoConformidad
+    )
+
 from app.core.database import Base
 target_metadata = Base.metadata
-# ──────────────────────────────────────────────────────────────────
+
 
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
