@@ -17,10 +17,15 @@ from app.routers import usuario_router
 
 load_dotenv()
 
+_dev = os.getenv("ENVIRONMENT") == "development"
+
 app = FastAPI(
     title="PISST API",
     description="Plataforma Integral de Seguridad y Salud en el Trabajo",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/docs" if _dev else None,
+    redoc_url="/redoc" if _dev else None,
+    openapi_url="/openapi.json" if _dev else None,
 )
 
 limiter = Limiter(key_func=get_remote_address)
