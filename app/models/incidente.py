@@ -56,3 +56,7 @@ class Incidente(Base):
     investigacion        = relationship("Investigacion", back_populates="incidente", uselist=False)
     acciones_correctivas = relationship("AccionCorrectiva", back_populates="incidente")
     
+    # ✅ Fix Bug A — Relación con Empresa para el FURAT
+    empresa              = relationship("Empresa", foreign_keys=[empresa_id])
+
+    

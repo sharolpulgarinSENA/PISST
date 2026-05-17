@@ -1,4 +1,5 @@
 # app/services/furat_service.py
+from app.models.empresa import Empresa
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -74,10 +75,15 @@ def generar_furat(db: Session, incidente_id: UUID, empresa_id: UUID) -> bytes:
     # ── Sección 1: Datos de la empresa ────────────────────────────
     elementos.append(Paragraph("<b>SECCIÓN 1 — DATOS DE LA EMPRESA</b>", style_normal))
 
+    # Después
+    empresa = db.query(Empresa).filter(Empresa.id == incidente.empresa_id).first()
+    razon_social = empresa.nombre if empresa else "N/A"
+    nit = empresa.nit if empresa else "N/A"
+
     datos_empresa = [
-        ["Razón Social", incidente.reportado_por.nombre if incidente.reportado_por else "N/A",
+         ["Razón Social", razon_social,
          "Fecha del reporte", datetime.utcnow().strftime("%d/%m/%Y")],
-        ["NIT", "Ver sistema", "Ciudad", "N/A"],
+        ["NIT", nit, "Ciudad", "N/A"],
     ]
 
     tabla_empresa = Table(datos_empresa, colWidths=[3.5*cm, 6*cm, 3.5*cm, 6*cm])
