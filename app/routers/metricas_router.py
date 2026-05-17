@@ -1,5 +1,5 @@
 # app/routers/metricas_router.py
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -9,16 +9,14 @@ from app.services import metricas_service
 
 router = APIRouter(prefix="/metricas", tags=["Dashboard y Métricas"])
 
+PERIODOS_VALIDOS = ["mensual", "trimestral", "anual"]
+
 
 @router.get("/kpis")
 def obtener_kpis(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst", "gerencia"))
 ):
-    """
-    Calcula los KPIs de accidentalidad.
-    Accesible para SST y Gerencia.
-    """
     return metricas_service.get_kpis(db, current_user.empresa_id)
 
 
@@ -27,10 +25,6 @@ def dashboard_gerencia(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst", "gerencia"))
 ):
-    """
-    Resumen ejecutivo para Gerencia.
-    Incluye KPIs, incidentes activos y cumplimiento del SG-SST.
-    """
     return metricas_service.get_dashboard_gerencia(db, current_user.empresa_id)
 
 
@@ -39,11 +33,8 @@ def obtener_alertas(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst"))
 ):
-    """
-    Retorna alertas activas para el Encargado SST.
-    Incidentes sin investigación, acciones vencidas y próximas a vencer.
-    """
     return metricas_service.get_alertas(db, current_user.empresa_id)
+
 
 @router.get("/reporte-pdf")
 def descargar_reporte_pdf(
@@ -51,20 +42,15 @@ def descargar_reporte_pdf(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst", "gerencia"))
 ):
-    """
-    Descarga el reporte ejecutivo en PDF.
-    Parámetro periodo: mensual, trimestral, anual.
-    """
+    if periodo not in PERIODOS_VALIDOS:
+        raise HTTPException(status_code=400, detail="Período inválido. Use: mensual, trimestral, anual")
+
     from fastapi.responses import StreamingResponse
-
     buffer = metricas_service.generar_reporte_pdf(db, current_user.empresa_id, periodo)
-
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={
-            "Content-Disposition": f"attachment; filename=reporte_pisst_{periodo}.pdf"
-        }
+        headers={"Content-Disposition": f"attachment; filename=reporte_pisst_{periodo}.pdf"}
     )
 
 
@@ -74,18 +60,13 @@ def descargar_reporte_excel(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst", "gerencia"))
 ):
-    """
-    Descarga el reporte ejecutivo en Excel.
-    Parámetro periodo: mensual, trimestral, anual.
-    """
+    if periodo not in PERIODOS_VALIDOS:
+        raise HTTPException(status_code=400, detail="Período inválido. Use: mensual, trimestral, anual")
+
     from fastapi.responses import StreamingResponse
-
     buffer = metricas_service.generar_reporte_excel(db, current_user.empresa_id, periodo)
-
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f"attachment; filename=reporte_pisst_{periodo}.xlsx"
-        }
+        headers={"Content-Disposition": f"attachment; filename=reporte_pisst_{periodo}.xlsx"}
     )
