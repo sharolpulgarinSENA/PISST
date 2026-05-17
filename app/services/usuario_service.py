@@ -57,7 +57,7 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
         password_temporal=password_temporal
     )
     if not enviado:
-    print(f"⚠️ Correo de bienvenida no enviado a {nuevo_usuario.email} — el administrador debe resetear la contraseña manualmente")
+        print(f"⚠️ Correo de bienvenida no enviado a {nuevo_usuario.email} — el administrador debe resetear la contraseña manualmente")
 
     return nuevo_usuario
 
