@@ -142,10 +142,6 @@ def actualizar_accion_correctiva(
         db, accion_id, current_user.empresa_id, datos
     )
 
-from fastapi.responses import Response
-from app.services import furat_service
-
-# Agregar este endpoint al final
 @router.get("/{incidente_id}/furat")
 def descargar_furat(
     incidente_id: UUID,
