@@ -7,14 +7,14 @@ from datetime import datetime, timedelta
 from app.models.incidente import Incidente, EstadoIncidenteEnum
 from app.models.accion_correctiva import AccionCorrectiva
 from app.models.capacitacion import Capacitacion, SesionCapacitacion, Asistencia
-from app.models.user import User
+from app.models.user import User, RoleEnum
 
 
 def get_kpis(db: Session, empresa_id: UUID):
     total_trabajadores = db.query(User).filter(
         User.empresa_id == empresa_id,
         User.activo == True,
-        User.role == "empleado"
+        User.role == RoleEnum.empleado
     ).count()
 
     inicio_anio = datetime(datetime.utcnow().year, 1, 1)

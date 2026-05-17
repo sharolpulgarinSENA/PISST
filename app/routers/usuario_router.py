@@ -5,7 +5,7 @@ from typing import List
 from uuid import UUID
 
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_role
+from app.core.deps import require_role
 from app.models.user import User
 from app.schemas.usuario_schema import UsuarioCreate, UsuarioUpdate, UsuarioResponse
 from app.services.usuario_service import (
