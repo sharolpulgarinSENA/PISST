@@ -50,11 +50,14 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
     db.commit()
     db.refresh(nuevo_usuario)
 
-    enviar_correo_bienvenida(
+    # ✅ Fix Bug #3 — Capturar si el correo falla
+    enviado = enviar_correo_bienvenida(
         email_destino=nuevo_usuario.email,
         nombre=nuevo_usuario.nombre,
         password_temporal=password_temporal
     )
+    if not enviado:
+        print(f"⚠️ Correo de bienvenida no enviado a {nuevo_usuario.email} — contraseña temporal: {password_temporal}")
 
     return nuevo_usuario
 
