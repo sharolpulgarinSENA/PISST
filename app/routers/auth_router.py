@@ -65,8 +65,12 @@ async def validar_recaptcha(token: str) -> bool:
 
 # ── Endpoints ────────────────────────────────────────────────────
 
+MAX_INTENTOS = 5
+BLOQUEO_MINUTOS = 5
+
+
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 async def login(
     request: Request,
     datos: LoginRequest,
@@ -74,7 +78,8 @@ async def login(
 ):
     """
     Verifica credenciales y retorna JWT.
-    Máximo 5 intentos por minuto por IP.
+    Bloquea la cuenta 5 minutos tras 5 intentos fallidos consecutivos.
+    Sesión única: cada login invalida la sesión anterior.
     """
     if not await validar_recaptcha(datos.recaptcha_token):
         raise HTTPException(status_code=400, detail="reCAPTCHA inválido")
@@ -84,12 +89,53 @@ async def login(
         User.activo == True
     ).first()
 
-    if not user or not verify_password(datos.password, user.password_hash):
+    # Si el usuario no existe, responder igual que si la contraseña fuera mala
+    # (no revelar si el email existe)
+    if not user:
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+
+    # Verificar si la cuenta está bloqueada
+    bloqueado_hasta: Optional[datetime] = user.bloqueado_hasta  # type: ignore[assignment]
+    if bloqueado_hasta is not None and bloqueado_hasta > datetime.utcnow():
+        minutos_restantes = int(
+            (bloqueado_hasta - datetime.utcnow()).total_seconds() / 60
+        ) + 1
+        raise HTTPException(
+            status_code=429,
+            detail=f"Cuenta bloqueada por demasiados intentos fallidos. "
+                   f"Intenta de nuevo en {minutos_restantes} minuto(s)."
+        )
+
+    # Verificar contraseña
+    if not verify_password(datos.password, str(user.password_hash)):
+        intentos = int(user.intentos_fallidos or 0) + 1  # type: ignore[arg-type]
+        user.intentos_fallidos = intentos  # type: ignore[assignment]
+        if intentos >= MAX_INTENTOS:
+            user.bloqueado_hasta = datetime.utcnow() + timedelta(minutes=BLOQUEO_MINUTOS)  # type: ignore[assignment]
+            db.commit()
+            raise HTTPException(
+                status_code=429,
+                detail=f"Cuenta bloqueada por {BLOQUEO_MINUTOS} minutos tras "
+                       f"{MAX_INTENTOS} intentos fallidos consecutivos."
+            )
+        restantes = MAX_INTENTOS - intentos
+        db.commit()
+        raise HTTPException(
+            status_code=401,
+            detail=f"Credenciales incorrectas. Te quedan {restantes} intento(s) antes del bloqueo."
+        )
+
+    # Login exitoso — resetear contadores y generar nueva sesión
+    user.intentos_fallidos = 0  # type: ignore[assignment]
+    user.bloqueado_hasta = None  # type: ignore[assignment]
+    nuevo_session_token = secrets.token_hex(32)
+    user.session_token = nuevo_session_token  # type: ignore[assignment]
+    db.commit()
 
     token = create_access_token({
         "sub": str(user.id),
-        "role": user.role.value
+        "role": user.role.value,
+        "sid": nuevo_session_token
     })
 
     return LoginResponse(

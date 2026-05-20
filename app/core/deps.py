@@ -31,7 +31,8 @@ def get_current_user(
     token = credentials.credentials
     try:
         payload = decode_token(token)
-        user_id = payload.get("sub")  # "sub" = subject = id del usuario
+        user_id = payload.get("sub")
+        session_id = payload.get("sid")
         if not user_id:
             raise HTTPException(status_code=401, detail="Token inválido")
     except JWTError:
@@ -44,6 +45,13 @@ def get_current_user(
 
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
+
+    # Verificar sesión única: si el token no coincide con la sesión activa en BD
+    if session_id is not None and str(user.session_token) != session_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Sesión expirada. Iniciaste sesión desde otro dispositivo."
+        )
 
     return user
 

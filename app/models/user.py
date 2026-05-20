@@ -1,7 +1,7 @@
 # app/models/user.py
 import uuid
 import enum
-from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -35,6 +35,13 @@ class User(Base):
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     reset_token = Column(String(255), nullable=True)
     reset_token_expira = Column(DateTime, nullable=True)
+
+    # Protección contra fuerza bruta
+    intentos_fallidos = Column(Integer, default=0, nullable=False)
+    bloqueado_hasta = Column(DateTime, nullable=True)
+
+    # Sesión única — se regenera en cada login
+    session_token = Column(String(64), nullable=True)
 
     # Relaciones — solo para Python, no crean columnas en la BD
     # Permiten hacer: current_user.area.nombre y current_user.cargo.nombre
