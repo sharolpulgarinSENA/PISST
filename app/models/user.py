@@ -8,6 +8,7 @@ from datetime import datetime
 from app.core.database import Base
 
 class RoleEnum(str, enum.Enum):
+    admin    = "admin"     # ✅ nuevo
     sst      = "sst"
     gerencia = "gerencia"
     empleado = "empleado"
@@ -23,7 +24,7 @@ class User(Base):
 
     empresa_id = Column(UUID(as_uuid=True),
                         ForeignKey("empresas.id"),
-                        nullable=False)
+                        nullable=True)  # ✅ nullable=True para el admin
     area_id = Column(UUID(as_uuid=True),
                      ForeignKey("areas.id"),
                      nullable=True)
@@ -36,14 +37,9 @@ class User(Base):
     reset_token = Column(String(255), nullable=True)
     reset_token_expira = Column(DateTime, nullable=True)
 
-    # Protección contra fuerza bruta
     intentos_fallidos = Column(Integer, default=0, nullable=False)
     bloqueado_hasta = Column(DateTime, nullable=True)
-
-    # Sesión única — se regenera en cada login
     session_token = Column(String(64), nullable=True)
 
-    # Relaciones — solo para Python, no crean columnas en la BD
-    # Permiten hacer: current_user.area.nombre y current_user.cargo.nombre
     area  = relationship("Area",  foreign_keys=[area_id])
     cargo = relationship("Cargo", foreign_keys=[cargo_id])
