@@ -50,10 +50,42 @@ def obtener_peligro(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Retorna el detalle de un peligro con sus evaluaciones."""
-    return riesgo_service.get_peligro_by_id(
-        db, peligro_id, current_user.empresa_id
-    )
+    """Retorna el detalle de un peligro con sus evaluaciones y medidas de control."""
+    peligro = riesgo_service.get_peligro_by_id(db, peligro_id, current_user.empresa_id)
+    return {
+        "id": str(peligro.id),
+        "descripcion": peligro.descripcion,
+        "tipo": peligro.tipo.value,
+        "actividad": peligro.actividad,
+        "trabajadores_expuestos": peligro.trabajadores_expuestos,
+        "activo": peligro.activo,
+        "empresa_id": str(peligro.empresa_id),
+        "area_id": str(peligro.area_id) if peligro.area_id else None,
+        "evaluaciones": [
+            {
+                "id": str(ev.id),
+                "probabilidad": ev.probabilidad,
+                "severidad": ev.severidad,
+                "nivel_riesgo": ev.nivel_riesgo.value,
+                "es_residual": ev.es_residual,
+                "fecha_evaluacion": ev.fecha_evaluacion.isoformat(),
+                "peligro_id": str(ev.peligro_id),
+            }
+            for ev in peligro.evaluaciones
+        ],
+        "medidas_control": [
+            {
+                "id": str(m.id),
+                "descripcion": m.descripcion,
+                "tipo": m.tipo.value,
+                "estado": m.estado.value,
+                "evidencia": m.evidencia,
+                "fecha_limite": m.fecha_limite.isoformat() if m.fecha_limite else None,
+                "peligro_id": str(m.peligro_id),
+            }
+            for m in peligro.medidas_control
+        ],
+    }
 
 
 # ── Evaluaciones de Riesgo ────────────────────────────────────────
