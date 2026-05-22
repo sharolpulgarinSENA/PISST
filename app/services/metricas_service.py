@@ -113,7 +113,7 @@ def get_alertas(db: Session, empresa_id: UUID):
     sin_investigacion = db.query(Incidente).filter(
         Incidente.empresa_id == empresa_id,
         Incidente.estado == "abierto",
-        Incidente.investigacion.is_(None)  # ✅ Fix — usar is_(None) en SQLAlchemy
+        ~Incidente.investigacion.has()
     ).count()
 
     if sin_investigacion > 0:
