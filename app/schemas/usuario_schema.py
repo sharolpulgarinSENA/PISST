@@ -5,12 +5,13 @@ from uuid import UUID
 from app.models.user import RoleEnum
 
 
+
 class UsuarioCreate(BaseModel):
     nombre: str
     email: EmailStr
     role: RoleEnum
-    area_id: Optional[UUID] = None
-    cargo_id: Optional[UUID] = None
+    area_nombre: Optional[str] = None
+    cargo_nombre: Optional[str] = None
 
 
 class UsuarioUpdate(BaseModel):
