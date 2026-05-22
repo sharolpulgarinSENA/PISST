@@ -9,6 +9,8 @@ from app.models.user import User, RoleEnum
 from app.schemas.usuario_schema import UsuarioCreate, UsuarioUpdate
 from app.core.security import get_password_hash
 from app.services.email_service import enviar_correo_bienvenida
+from app.models.area import Area
+from app.models.cargo import Cargo
 
 
 def generar_password_temporal(longitud: int = 10) -> str:
@@ -34,6 +36,37 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
     if db.query(User).filter(User.email == datos.email).first():
         raise HTTPException(status_code=400, detail="El email ya está registrado")
 
+    # 1️⃣ Resolver area_nombre → area_id
+    area_id = None
+    if datos.area_nombre:
+        area = db.query(Area).filter(
+            Area.nombre == datos.area_nombre,
+            Area.empresa_id == empresa_id,
+            Area.activo == True
+        ).first()
+        if not area:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Área '{datos.area_nombre}' no encontrada"
+            )
+        area_id = area.id
+
+    # 2️⃣ Resolver cargo_nombre → cargo_id
+    cargo_id = None
+    if datos.cargo_nombre:
+        cargo = db.query(Cargo).filter(
+            Cargo.nombre == datos.cargo_nombre,
+            Cargo.empresa_id == empresa_id,
+            Cargo.activo == True
+        ).first()
+        if not cargo:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Cargo '{datos.cargo_nombre}' no encontrado"
+            )
+        cargo_id = cargo.id
+
+    # 3️⃣ Crear usuario
     password_temporal = generar_password_temporal()
 
     nuevo_usuario = User(
@@ -42,22 +75,21 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
         password_hash=get_password_hash(password_temporal),
         role=RoleEnum(datos.role),
         empresa_id=empresa_id,
-        area_id=datos.area_id,
-        cargo_id=datos.cargo_id,
+        area_id=area_id,
+        cargo_id=cargo_id,
         activo=True
     )
     db.add(nuevo_usuario)
     db.commit()
     db.refresh(nuevo_usuario)
 
-    # ✅ Fix Bug #3 — Capturar si el correo falla
     enviado = enviar_correo_bienvenida(
-        email_destino=nuevo_usuario.email,
-        nombre=nuevo_usuario.nombre,
+        email_destino=str(nuevo_usuario.email),
+        nombre=str(nuevo_usuario.nombre),
         password_temporal=password_temporal
     )
     if not enviado:
-        print(f"⚠️ Correo de bienvenida no enviado a {nuevo_usuario.email} — el administrador debe resetear la contraseña manualmente")
+        print(f"⚠️ Correo no enviado a {nuevo_usuario.email}")
 
     return nuevo_usuario
 

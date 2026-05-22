@@ -15,6 +15,8 @@ from app.routers import riesgo_router
 from app.routers import auditoria_router
 from app.routers import usuario_router
 from app.routers import admin_router
+from app.routers.area_router import router as area_router
+from app.routers.cargo_router import router as cargo_router
 
 load_dotenv()
 
@@ -57,6 +59,8 @@ app.include_router(riesgo_router.router)
 app.include_router(auditoria_router.router)
 app.include_router(usuario_router.router)
 app.include_router(admin_router.router)
+app.include_router(area_router)
+app.include_router(cargo_router)
 
 @app.get("/", tags=["Health"])
 def health_check():
