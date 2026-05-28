@@ -1,5 +1,6 @@
 ﻿# main.py
 import os
+import logging
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -18,12 +19,11 @@ from app.routers import riesgo_router
 from app.routers import auditoria_router
 from app.routers import usuario_router
 from app.routers import admin_router
-from app.routers.area_router import router as area_router
-from app.routers.cargo_router import router as cargo_router
+from app.routers import area_router
+from app.routers import cargo_router
 
 load_dotenv()
 
-import logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s — %(message)s"
@@ -73,8 +73,8 @@ app.include_router(riesgo_router.router)
 app.include_router(auditoria_router.router)
 app.include_router(usuario_router.router)
 app.include_router(admin_router.router)
-app.include_router(area_router)
-app.include_router(cargo_router)
+app.include_router(area_router.router)
+app.include_router(cargo_router.router)
 
 @app.get("/", tags=["Health"])
 def health_check(db: Session = Depends(get_db)):
