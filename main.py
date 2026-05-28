@@ -1,6 +1,9 @@
 ﻿# main.py
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from app.core.database import get_db
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -68,5 +71,9 @@ app.include_router(area_router)
 app.include_router(cargo_router)
 
 @app.get("/", tags=["Health"])
-def health_check():
-    return {"status": "ok", "proyecto": "PISST", "version": "1.0.0"}
+def health_check(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "db": "connected", "proyecto": "PISST", "version": "1.0.0"}
+    except Exception:
+        raise HTTPException(status_code=503, detail="Base de datos no disponible")
