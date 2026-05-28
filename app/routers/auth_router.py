@@ -238,7 +238,7 @@ def reset_password(
     if not user:
         raise HTTPException(status_code=400, detail="Token inválido")
 
-    if user.reset_token_expira < datetime.utcnow():
+    if not user.reset_token_expira or user.reset_token_expira < datetime.utcnow():
         raise HTTPException(status_code=400, detail="Token expirado")
 
     user.password_hash = get_password_hash(datos.new_password)
