@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.auditoria import (
     Auditoria, Hallazgo, NoConformidad,
@@ -51,7 +51,7 @@ def cambiar_estado_auditoria(db: Session, auditoria_id: UUID,
     auditoria = get_auditoria_by_id(db, auditoria_id, empresa_id)
     auditoria.estado = nuevo_estado
     if nuevo_estado == "en_ejecucion":
-        auditoria.fecha_ejecucion = datetime.utcnow()
+        auditoria.fecha_ejecucion = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     db.refresh(auditoria)
     return auditoria
@@ -141,7 +141,7 @@ def update_no_conformidad(db: Session, nc_id: UUID, datos: NoConformidadUpdate):
         setattr(nc, campo, valor)
 
     if datos.estado == "cerrada":
-        nc.fecha_cierre = datetime.utcnow()
+        nc.fecha_cierre = datetime.now(timezone.utc).replace(tzinfo=None)
 
     db.commit()
     db.refresh(nc)

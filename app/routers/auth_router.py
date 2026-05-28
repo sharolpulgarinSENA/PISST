@@ -6,7 +6,7 @@ from slowapi.util import get_remote_address
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 import httpx, os, secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.core.database import get_db
 from app.core.security import get_password_hash, verify_password, create_access_token
@@ -95,9 +95,9 @@ async def login(
 
     # Verificar si la cuenta está bloqueada
     bloqueado_hasta: Optional[datetime] = user.bloqueado_hasta  # type: ignore[assignment]
-    if bloqueado_hasta is not None and bloqueado_hasta > datetime.utcnow():
+    if bloqueado_hasta is not None and bloqueado_hasta > datetime.now(timezone.utc).replace(tzinfo=None):
         minutos_restantes = int(
-            (bloqueado_hasta - datetime.utcnow()).total_seconds() / 60
+            (bloqueado_hasta - datetime.now(timezone.utc).replace(tzinfo=None)).total_seconds() / 60
         ) + 1
         raise HTTPException(
             status_code=429,
@@ -110,7 +110,7 @@ async def login(
         intentos = int(user.intentos_fallidos or 0) + 1  # type: ignore[arg-type]
         user.intentos_fallidos = intentos  # type: ignore[assignment]
         if intentos >= MAX_INTENTOS:
-            user.bloqueado_hasta = datetime.utcnow() + timedelta(minutes=BLOQUEO_MINUTOS)  # type: ignore[assignment]
+            user.bloqueado_hasta = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=BLOQUEO_MINUTOS)  # type: ignore[assignment]
             db.commit()
             raise HTTPException(
                 status_code=429,
@@ -198,7 +198,7 @@ def forgot_password(
 
     token = secrets.token_urlsafe(32)
     user.reset_token = token
-    user.reset_token_expira = datetime.utcnow() + timedelta(minutes=30)
+    user.reset_token_expira = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=30)
     db.commit()
 
     enviado = enviar_correo_reset(
@@ -237,7 +237,7 @@ def reset_password(
     if not user:
         raise HTTPException(status_code=400, detail="Token inválido")
 
-    if not user.reset_token_expira or user.reset_token_expira < datetime.utcnow():
+    if not user.reset_token_expira or user.reset_token_expira < datetime.now(timezone.utc).replace(tzinfo=None):
         raise HTTPException(status_code=400, detail="Token expirado")
 
     user.password_hash = get_password_hash(datos.new_password)

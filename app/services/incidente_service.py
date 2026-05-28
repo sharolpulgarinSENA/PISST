@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from fastapi import HTTPException
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.incidente import Incidente, EstadoIncidenteEnum
 from app.models.lesion import Lesion
@@ -97,7 +97,7 @@ def update_estado_incidente(db: Session, incidente_id: UUID,
             )
 
     incidente.estado = nuevo_estado
-    incidente.fecha_actualizacion = datetime.utcnow()
+    incidente.fecha_actualizacion = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     db.refresh(incidente)
     return incidente
@@ -180,7 +180,7 @@ def update_accion_correctiva(db: Session, accion_id: UUID,
         setattr(accion, campo, valor)
 
     if datos.estado == "completada":
-        accion.fecha_cierre = datetime.utcnow()
+        accion.fecha_cierre = datetime.now(timezone.utc).replace(tzinfo=None)
 
     db.commit()
     db.refresh(accion)

@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.models.incidente import Incidente, TipoIncidenteEnum, EstadoIncidenteEnum
 from app.models.accion_correctiva import AccionCorrectiva, EstadoAccionEnum
@@ -17,7 +17,7 @@ def get_kpis(db: Session, empresa_id: UUID):
         User.role == RoleEnum.empleado
     ).count()
 
-    inicio_anio = datetime(datetime.utcnow().year, 1, 1)
+    inicio_anio = datetime(datetime.now(timezone.utc).replace(tzinfo=None).year, 1, 1)
     total_accidentes = db.query(Incidente).filter(
         Incidente.empresa_id == empresa_id,
         Incidente.tipo == TipoIncidenteEnum.accidente,
@@ -33,7 +33,7 @@ def get_kpis(db: Session, empresa_id: UUID):
         ).scalar()
     dias_perdidos = dias_perdidos_result or 0
 
-    dias_transcurridos = (datetime.utcnow() - inicio_anio).days
+    dias_transcurridos = (datetime.now(timezone.utc).replace(tzinfo=None) - inicio_anio).days
 
     # ✅ Fix Bug #5 — División por cero el 1 de enero
     horas_trabajadas = total_trabajadores * 8 * dias_transcurridos
@@ -64,7 +64,7 @@ def get_dashboard_gerencia(db: Session, empresa_id: UUID):
         Incidente.estado != EstadoIncidenteEnum.cerrado
     ).count()
 
-    hace_un_mes = datetime.utcnow() - timedelta(days=30)
+    hace_un_mes = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30)
     incidentes_ultimo_mes = db.query(Incidente).filter(
         Incidente.empresa_id == empresa_id,
         Incidente.fecha_creacion >= hace_un_mes
@@ -80,7 +80,7 @@ def get_dashboard_gerencia(db: Session, empresa_id: UUID):
         .filter(
             Incidente.empresa_id == empresa_id,
             AccionCorrectiva.estado != EstadoAccionEnum.completada,
-            AccionCorrectiva.fecha_limite < datetime.utcnow()
+            AccionCorrectiva.fecha_limite < datetime.now(timezone.utc).replace(tzinfo=None)
         ).count()
 
     total_acciones = db.query(AccionCorrectiva)\
@@ -129,7 +129,7 @@ def get_alertas(db: Session, empresa_id: UUID):
         .filter(
             Incidente.empresa_id == empresa_id,
             AccionCorrectiva.estado != EstadoAccionEnum.completada,
-            AccionCorrectiva.fecha_limite < datetime.utcnow()
+            AccionCorrectiva.fecha_limite < datetime.now(timezone.utc).replace(tzinfo=None)
         ).count()
 
     if acciones_vencidas > 0:
@@ -140,13 +140,13 @@ def get_alertas(db: Session, empresa_id: UUID):
             "url_destino": "/acciones-correctivas"
         })
 
-    proxima_semana = datetime.utcnow() + timedelta(days=7)
+    proxima_semana = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
     acciones_proximas = db.query(AccionCorrectiva)\
         .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)\
         .filter(
             Incidente.empresa_id == empresa_id,
             AccionCorrectiva.estado != EstadoAccionEnum.completada,
-            AccionCorrectiva.fecha_limite >= datetime.utcnow(),
+            AccionCorrectiva.fecha_limite >= datetime.now(timezone.utc).replace(tzinfo=None),
             AccionCorrectiva.fecha_limite <= proxima_semana
         ).count()
 
@@ -189,7 +189,7 @@ def generar_reporte_pdf(db: Session, empresa_id: UUID, periodo: str):
                               fontName='Helvetica-Bold' if bold else 'Helvetica',
                               spaceAfter=after)
 
-    fecha_actual = datetime.utcnow().strftime("%d/%m/%Y")
+    fecha_actual = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%d/%m/%Y")
 
     contenido = [
         Spacer(1, 0.2 * inch),
@@ -303,7 +303,7 @@ def generar_reporte_excel(db: Session, empresa_id: UUID, periodo: str):
     ws['A1'].alignment = center
 
     ws.merge_cells('A2:C2')
-    ws['A2'] = f"Período: {periodo.capitalize()} | Generado: {datetime.utcnow().strftime('%d/%m/%Y')}"
+    ws['A2'] = f"Período: {periodo.capitalize()} | Generado: {datetime.now(timezone.utc).replace(tzinfo=None).strftime('%d/%m/%Y')}"
     ws['A2'].font = Font(name='Calibri', color="666666", size=10)
     ws['A2'].alignment = center
 
