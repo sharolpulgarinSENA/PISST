@@ -5,7 +5,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from pydantic import BaseModel, EmailStr
 from typing import Optional
-import httpx, os, secrets
+import httpx, os, secrets, logging
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta, timezone
 
 from app.core.database import get_db
@@ -209,7 +211,7 @@ def forgot_password(
 
     # ✅ Fix Bug #4 — Siempre retornar mensaje genérico aunque falle el correo
     if not enviado:
-        print(f"⚠️ Error enviando correo a {user.email} — token generado pero no enviado")
+        logger.warning(f"Error enviando correo a {user.email} — token generado pero no enviado")
 
     return mensaje_generico
 

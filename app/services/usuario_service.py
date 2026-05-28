@@ -1,6 +1,7 @@
 # app/services/usuario_service.py
 import secrets
 import string
+import logging
 from uuid import UUID
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -11,6 +12,8 @@ from app.core.security import get_password_hash
 from app.services.email_service import enviar_correo_bienvenida
 from app.models.area import Area
 from app.models.cargo import Cargo
+
+logger = logging.getLogger(__name__)
 
 
 def generar_password_temporal(longitud: int = 10) -> str:
@@ -92,7 +95,7 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
         password_temporal=password_temporal
     )
     if not enviado:
-        print(f"⚠️ Correo no enviado a {nuevo_usuario.email}")
+        logger.warning(f"Correo no enviado a {nuevo_usuario.email}")
 
     return nuevo_usuario
 
