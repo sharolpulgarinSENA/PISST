@@ -36,7 +36,6 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     role: str
-    empresa_id: str
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
@@ -167,7 +166,7 @@ def register(
         email=datos.email,
         password_hash=get_password_hash(datos.password),
         role=role,  # ✅ Fix enum correcto
-        empresa_id=datos.empresa_id
+        empresa_id=current_user.empresa_id
     )
     db.add(nuevo_usuario)
     db.commit()
