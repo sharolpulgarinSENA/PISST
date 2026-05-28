@@ -158,11 +158,8 @@ async def login(
 def register(
     datos: RegisterRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst"))  # ✅ Fix Bug #2
+    current_user: User = Depends(require_role("admin"))
 ):
-    """
-    Crea un nuevo usuario. Solo el Encargado SST puede registrar usuarios.
-    """
     if db.query(User).filter(User.email == datos.email).first():
         raise HTTPException(status_code=400, detail="El email ya está registrado")
 
