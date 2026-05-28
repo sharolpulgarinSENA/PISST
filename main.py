@@ -20,6 +20,11 @@ from app.routers.cargo_router import router as cargo_router
 
 load_dotenv()
 
+_REQUIRED_ENV = ["DATABASE_URL", "SECRET_KEY", "GEMINI_API_KEY", "RESEND_API_KEY"]
+_missing = [v for v in _REQUIRED_ENV if not os.getenv(v)]
+if _missing:
+    raise RuntimeError(f"Variables de entorno faltantes: {_missing}")
+
 _dev = os.getenv("ENVIRONMENT") == "development"
 
 app = FastAPI(
