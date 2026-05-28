@@ -1,7 +1,7 @@
 # app/models/accion_correctiva.py
 import uuid
 import enum
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -41,3 +41,7 @@ class AccionCorrectiva(Base):
 
     incidente   = relationship("Incidente", back_populates="acciones_correctivas")
     responsable = relationship("User", foreign_keys=[responsable_id])
+
+    __table_args__ = (
+        Index("ix_acciones_incidente_estado", "incidente_id", "estado"),
+    )

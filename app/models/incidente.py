@@ -1,7 +1,7 @@
 # app/models/incidente.py
 import uuid
 import enum
-from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Enum, Integer
+from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Enum, Integer, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -55,6 +55,10 @@ class Incidente(Base):
     testigos             = relationship("Testigo", back_populates="incidente")
     investigacion        = relationship("Investigacion", back_populates="incidente", uselist=False)
     acciones_correctivas = relationship("AccionCorrectiva", back_populates="incidente")
+
+    __table_args__ = (
+        Index("ix_incidentes_empresa_estado", "empresa_id", "estado"),
+    )
     
     # ✅ Fix Bug A — Relación con Empresa para el FURAT
     empresa              = relationship("Empresa", foreign_keys=[empresa_id])

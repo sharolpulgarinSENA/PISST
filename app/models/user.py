@@ -1,7 +1,7 @@
 # app/models/user.py
 import uuid
 import enum
-from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -46,3 +46,7 @@ class User(Base):
 
     area  = relationship("Area",  foreign_keys=[area_id])
     cargo = relationship("Cargo", foreign_keys=[cargo_id])
+
+    __table_args__ = (
+        Index("ix_users_empresa_activo", "empresa_id", "activo"),
+    )
