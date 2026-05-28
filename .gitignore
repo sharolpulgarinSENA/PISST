@@ -6,6 +6,9 @@ __pycache__/
 # Variables de entorno - CRÍTICO: contiene contraseñas y API keys
 .env
 
+# Base de datos de tests
+test.db
+
 # Archivos de sistema
 .DS_Store
 Thumbs.db
