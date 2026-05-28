@@ -33,6 +33,7 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     role: str
     nombre: str
@@ -139,6 +140,10 @@ async def login(
     user.bloqueado_hasta = None  # type: ignore[assignment]
     nuevo_session_token = secrets.token_hex(32)
     user.session_token = nuevo_session_token  # type: ignore[assignment]
+
+    nuevo_refresh_token = secrets.token_hex(40)
+    user.refresh_token = nuevo_refresh_token  # type: ignore[assignment]
+    user.refresh_token_expira = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)  # type: ignore[assignment]
     db.commit()
 
     token = create_access_token({
@@ -149,6 +154,7 @@ async def login(
 
     return LoginResponse(
         access_token=token,
+        refresh_token=nuevo_refresh_token,
         role=user.role.value,
         nombre=user.nombre
     )
@@ -279,3 +285,29 @@ def cambiar_password(
     db.commit()
 
     return {"mensaje": "Contraseña cambiada exitosamente"}
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/refresh")
+def refresh_token(datos: RefreshRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(
+        User.refresh_token == datos.refresh_token,
+        User.activo == True
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Refresh token inválido")
+
+    if not user.refresh_token_expira or user.refresh_token_expira < datetime.now(timezone.utc).replace(tzinfo=None):
+        raise HTTPException(status_code=401, detail="Refresh token expirado")
+
+    nuevo_access_token = create_access_token({
+        "sub": str(user.id),
+        "role": user.role.value,
+        "sid": str(user.session_token)
+    })
+
+    return {"access_token": nuevo_access_token, "token_type": "bearer"}

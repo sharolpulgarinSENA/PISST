@@ -36,6 +36,8 @@ class User(Base):
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     reset_token = Column(String(255), nullable=True)
     reset_token_expira = Column(DateTime, nullable=True)
+    refresh_token = Column(String(255), nullable=True)
+    refresh_token_expira = Column(DateTime, nullable=True)
 
     intentos_fallidos = Column(Integer, default=0, nullable=False)
     bloqueado_hasta = Column(DateTime, nullable=True)
