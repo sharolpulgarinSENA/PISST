@@ -1,6 +1,7 @@
 # app/routers/metricas_router.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from typing import Literal
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
@@ -8,8 +9,6 @@ from app.models.user import User
 from app.services import metricas_service
 
 router = APIRouter(prefix="/metricas", tags=["Dashboard y Métricas"])
-
-PERIODOS_VALIDOS = ["mensual", "trimestral", "anual"]
 
 
 @router.get("/kpis")
@@ -38,13 +37,10 @@ def obtener_alertas(
 
 @router.get("/reporte-pdf")
 def descargar_reporte_pdf(
-    periodo: str = "mensual",
+    periodo: Literal["mensual", "trimestral", "anual"] = "mensual",
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst", "gerencia"))
 ):
-    if periodo not in PERIODOS_VALIDOS:
-        raise HTTPException(status_code=400, detail="Período inválido. Use: mensual, trimestral, anual")
-
     from fastapi.responses import StreamingResponse
     buffer = metricas_service.generar_reporte_pdf(db, current_user.empresa_id, periodo)
     return StreamingResponse(
@@ -56,13 +52,10 @@ def descargar_reporte_pdf(
 
 @router.get("/reporte-excel")
 def descargar_reporte_excel(
-    periodo: str = "mensual",
+    periodo: Literal["mensual", "trimestral", "anual"] = "mensual",
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst", "gerencia"))
 ):
-    if periodo not in PERIODOS_VALIDOS:
-        raise HTTPException(status_code=400, detail="Período inválido. Use: mensual, trimestral, anual")
-
     from fastapi.responses import StreamingResponse
     buffer = metricas_service.generar_reporte_excel(db, current_user.empresa_id, periodo)
     return StreamingResponse(
