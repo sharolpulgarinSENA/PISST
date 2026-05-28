@@ -55,7 +55,10 @@ limiter = Limiter(key_func=_rate_limit_key)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-_prod_origins = ["https://pisst-frontend.vercel.app"]
+_prod_origins = [
+    "https://pisst-frontend.vercel.app",  # front de pruebas
+    "https://app.pisst.online",           # front oficial Sharon/Santiago
+]
 if os.getenv("FRONTEND_URL"):
     _prod_origins.append(os.getenv("FRONTEND_URL"))
 
