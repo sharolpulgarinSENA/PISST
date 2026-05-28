@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -122,7 +122,7 @@ def reporte_rapido(
     nuevo_incidente = Incidente(
         tipo=tipos_map[datos.tipo],
         severidad=SeveridadEnum.sin_lesion,  # default, el SST puede actualizar
-        fecha=datetime.utcnow(),
+        fecha=datetime.now(timezone.utc).replace(tzinfo=None),
         lugar=datos.lugar,
         descripcion=datos.descripcion,
         estado=EstadoIncidenteEnum.borrador,

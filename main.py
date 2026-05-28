@@ -1,6 +1,10 @@
 ﻿# main.py
 import os
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from app.core.database import get_db
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -15,10 +19,20 @@ from app.routers import riesgo_router
 from app.routers import auditoria_router
 from app.routers import usuario_router
 from app.routers import admin_router
-from app.routers.area_router import router as area_router
-from app.routers.cargo_router import router as cargo_router
+from app.routers import area_router
+from app.routers import cargo_router
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s — %(message)s"
+)
+
+_REQUIRED_ENV = ["DATABASE_URL", "SECRET_KEY", "GEMINI_API_KEY", "RESEND_API_KEY"]
+_missing = [v for v in _REQUIRED_ENV if not os.getenv(v)]
+if _missing:
+    raise RuntimeError(f"Variables de entorno faltantes: {_missing}")
 
 _dev = os.getenv("ENVIRONMENT") == "development"
 
@@ -31,20 +45,25 @@ app = FastAPI(
     openapi_url="/openapi.json" if _dev else None,
 )
 
-limiter = Limiter(key_func=get_remote_address)
+def _rate_limit_key(request: Request) -> str:
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[-30:]
+    return get_remote_address(request)
+
+limiter = Limiter(key_func=_rate_limit_key)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "https://pisst-frontend.vercel.app",
-    os.getenv("FRONTEND_URL", ""),
-]
+_prod_origins = ["https://pisst-frontend.vercel.app"]
+if os.getenv("FRONTEND_URL"):
+    _prod_origins.append(os.getenv("FRONTEND_URL"))
+
+origins = _prod_origins + (["http://localhost:5173", "http://localhost:3000"] if _dev else [])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o for o in origins if o],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,9 +78,13 @@ app.include_router(riesgo_router.router)
 app.include_router(auditoria_router.router)
 app.include_router(usuario_router.router)
 app.include_router(admin_router.router)
-app.include_router(area_router)
-app.include_router(cargo_router)
+app.include_router(area_router.router)
+app.include_router(cargo_router.router)
 
 @app.get("/", tags=["Health"])
-def health_check():
-    return {"status": "ok", "proyecto": "PISST", "version": "1.0.0"}
+def health_check(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "db": "connected", "proyecto": "PISST", "version": "1.0.0"}
+    except Exception:
+        raise HTTPException(status_code=503, detail="Base de datos no disponible")

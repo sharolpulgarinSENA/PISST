@@ -1,16 +1,22 @@
 # app/routers/auth_router.py
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import HTTPBearer
+
+_bearer = HTTPBearer()
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from pydantic import BaseModel, EmailStr
 from typing import Optional
-import httpx, os, secrets
-from datetime import datetime, timedelta
+import httpx, os, secrets, logging
+
+logger = logging.getLogger(__name__)
+from datetime import datetime, timedelta, timezone
 
 from app.core.database import get_db
-from app.core.security import get_password_hash, verify_password, create_access_token
-from app.core.deps import require_role
+from app.core.security import get_password_hash, verify_password, create_access_token, decode_token
+from jose import JWTError
+from app.core.deps import require_role, get_current_user
 from app.models.user import User, RoleEnum
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -27,6 +33,7 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     role: str
     nombre: str
@@ -36,7 +43,6 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     role: str
-    empresa_id: str
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
@@ -44,6 +50,10 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
+
+class CambiarPasswordRequest(BaseModel):
+    password_actual: str
+    nueva_password: str
 
 
 # ── Función auxiliar ─────────────────────────────────────────────
@@ -96,9 +106,9 @@ async def login(
 
     # Verificar si la cuenta está bloqueada
     bloqueado_hasta: Optional[datetime] = user.bloqueado_hasta  # type: ignore[assignment]
-    if bloqueado_hasta is not None and bloqueado_hasta > datetime.utcnow():
+    if bloqueado_hasta is not None and bloqueado_hasta > datetime.now(timezone.utc).replace(tzinfo=None):
         minutos_restantes = int(
-            (bloqueado_hasta - datetime.utcnow()).total_seconds() / 60
+            (bloqueado_hasta - datetime.now(timezone.utc).replace(tzinfo=None)).total_seconds() / 60
         ) + 1
         raise HTTPException(
             status_code=429,
@@ -111,7 +121,7 @@ async def login(
         intentos = int(user.intentos_fallidos or 0) + 1  # type: ignore[arg-type]
         user.intentos_fallidos = intentos  # type: ignore[assignment]
         if intentos >= MAX_INTENTOS:
-            user.bloqueado_hasta = datetime.utcnow() + timedelta(minutes=BLOQUEO_MINUTOS)  # type: ignore[assignment]
+            user.bloqueado_hasta = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=BLOQUEO_MINUTOS)  # type: ignore[assignment]
             db.commit()
             raise HTTPException(
                 status_code=429,
@@ -130,6 +140,10 @@ async def login(
     user.bloqueado_hasta = None  # type: ignore[assignment]
     nuevo_session_token = secrets.token_hex(32)
     user.session_token = nuevo_session_token  # type: ignore[assignment]
+
+    nuevo_refresh_token = secrets.token_hex(40)
+    user.refresh_token = nuevo_refresh_token  # type: ignore[assignment]
+    user.refresh_token_expira = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)  # type: ignore[assignment]
     db.commit()
 
     token = create_access_token({
@@ -140,6 +154,7 @@ async def login(
 
     return LoginResponse(
         access_token=token,
+        refresh_token=nuevo_refresh_token,
         role=user.role.value,
         nombre=user.nombre
     )
@@ -149,11 +164,8 @@ async def login(
 def register(
     datos: RegisterRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst"))  # ✅ Fix Bug #2
+    current_user: User = Depends(require_role("admin"))
 ):
-    """
-    Crea un nuevo usuario. Solo el Encargado SST puede registrar usuarios.
-    """
     if db.query(User).filter(User.email == datos.email).first():
         raise HTTPException(status_code=400, detail="El email ya está registrado")
 
@@ -167,7 +179,7 @@ def register(
         email=datos.email,
         password_hash=get_password_hash(datos.password),
         role=role,  # ✅ Fix enum correcto
-        empresa_id=datos.empresa_id
+        empresa_id=current_user.empresa_id
     )
     db.add(nuevo_usuario)
     db.commit()
@@ -199,7 +211,7 @@ def forgot_password(
 
     token = secrets.token_urlsafe(32)
     user.reset_token = token
-    user.reset_token_expira = datetime.utcnow() + timedelta(minutes=30)
+    user.reset_token_expira = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=30)
     db.commit()
 
     enviado = enviar_correo_reset(
@@ -210,7 +222,7 @@ def forgot_password(
 
     # ✅ Fix Bug #4 — Siempre retornar mensaje genérico aunque falle el correo
     if not enviado:
-        print(f"⚠️ Error enviando correo a {user.email} — token generado pero no enviado")
+        logger.warning(f"Error enviando correo a {user.email} — token generado pero no enviado")
 
     return mensaje_generico
 
@@ -238,7 +250,7 @@ def reset_password(
     if not user:
         raise HTTPException(status_code=400, detail="Token inválido")
 
-    if user.reset_token_expira < datetime.utcnow():
+    if not user.reset_token_expira or user.reset_token_expira < datetime.now(timezone.utc).replace(tzinfo=None):
         raise HTTPException(status_code=400, detail="Token expirado")
 
     user.password_hash = get_password_hash(datos.new_password)
@@ -247,3 +259,55 @@ def reset_password(
     db.commit()
 
     return {"mensaje": "Contraseña actualizada exitosamente"}
+
+
+@router.post("/cambiar-password")
+def cambiar_password(
+    datos: CambiarPasswordRequest,
+    db: Session = Depends(get_db),
+    credentials = Depends(_bearer)
+):
+    try:
+        payload = decode_token(credentials.credentials)
+        user_id = payload.get("sub")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+    user = db.query(User).filter(User.id == user_id, User.activo == True).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario no encontrado")
+
+    if not verify_password(datos.password_actual, user.password_hash):
+        raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
+
+    user.password_hash = get_password_hash(datos.nueva_password)
+    user.debe_cambiar_password = False
+    db.commit()
+
+    return {"mensaje": "Contraseña cambiada exitosamente"}
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+@router.post("/refresh")
+def refresh_token(datos: RefreshRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(
+        User.refresh_token == datos.refresh_token,
+        User.activo == True
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Refresh token inválido")
+
+    if not user.refresh_token_expira or user.refresh_token_expira < datetime.now(timezone.utc).replace(tzinfo=None):
+        raise HTTPException(status_code=401, detail="Refresh token expirado")
+
+    nuevo_access_token = create_access_token({
+        "sub": str(user.id),
+        "role": user.role.value,
+        "sid": str(user.session_token)
+    })
+
+    return {"access_token": nuevo_access_token, "token_type": "bearer"}

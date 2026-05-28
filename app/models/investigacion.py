@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import Column, String, Text, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
 
 
@@ -24,7 +24,7 @@ class Investigacion(Base):
     descripcion_evento = Column(Text)
     lecciones_aprendidas = Column(Text)
 
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Un incidente tiene una sola investigación
     incidente_id = Column(UUID(as_uuid=True),

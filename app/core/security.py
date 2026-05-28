@@ -1,17 +1,20 @@
 # app/core/security.py
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
+import warnings
 from passlib.context import CryptContext
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
-# CryptContext: configura el algoritmo de hashing
-# bcrypt es el estándar de la industria para contraseñas
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", ".*bcrypt.*")
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY no está configurada en .env")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
@@ -41,7 +44,7 @@ def create_access_token(data: dict) -> str:
     Se envía al frontend cuando el usuario hace login exitoso.
     """
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 

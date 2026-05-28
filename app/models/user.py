@@ -1,10 +1,10 @@
 # app/models/user.py
 import uuid
 import enum
-from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
 
 class RoleEnum(str, enum.Enum):
@@ -33,13 +33,20 @@ class User(Base):
                       nullable=True)
 
     activo = Column(Boolean, default=True)
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     reset_token = Column(String(255), nullable=True)
     reset_token_expira = Column(DateTime, nullable=True)
+    refresh_token = Column(String(255), nullable=True)
+    refresh_token_expira = Column(DateTime, nullable=True)
 
     intentos_fallidos = Column(Integer, default=0, nullable=False)
     bloqueado_hasta = Column(DateTime, nullable=True)
     session_token = Column(String(64), nullable=True)
+    debe_cambiar_password = Column(Boolean, default=False, nullable=False)
 
     area  = relationship("Area",  foreign_keys=[area_id])
     cargo = relationship("Cargo", foreign_keys=[cargo_id])
+
+    __table_args__ = (
+        Index("ix_users_empresa_activo", "empresa_id", "activo"),
+    )

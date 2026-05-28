@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.auditoria import (
     Auditoria, Hallazgo, NoConformidad,
@@ -16,10 +16,10 @@ from app.schemas.auditoria import (
 
 # ── Auditorías ────────────────────────────────────────────────────
 
-def get_all_auditorias(db: Session, empresa_id: UUID):
+def get_all_auditorias(db: Session, empresa_id: UUID, skip: int = 0, limit: int = 50):
     return db.query(Auditoria)\
         .filter(Auditoria.empresa_id == empresa_id)\
-        .order_by(Auditoria.fecha_programada.desc()).all()
+        .order_by(Auditoria.fecha_programada.desc()).offset(skip).limit(limit).all()
 
 
 def create_auditoria(db: Session, datos: AuditoriaCreate, empresa_id: UUID):
@@ -51,7 +51,7 @@ def cambiar_estado_auditoria(db: Session, auditoria_id: UUID,
     auditoria = get_auditoria_by_id(db, auditoria_id, empresa_id)
     auditoria.estado = nuevo_estado
     if nuevo_estado == "en_ejecucion":
-        auditoria.fecha_ejecucion = datetime.utcnow()
+        auditoria.fecha_ejecucion = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     db.refresh(auditoria)
     return auditoria
@@ -141,7 +141,7 @@ def update_no_conformidad(db: Session, nc_id: UUID, datos: NoConformidadUpdate):
         setattr(nc, campo, valor)
 
     if datos.estado == "cerrada":
-        nc.fecha_cierre = datetime.utcnow()
+        nc.fecha_cierre = datetime.now(timezone.utc).replace(tzinfo=None)
 
     db.commit()
     db.refresh(nc)

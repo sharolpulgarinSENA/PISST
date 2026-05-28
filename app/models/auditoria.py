@@ -4,7 +4,7 @@ import enum
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
 
 
@@ -37,7 +37,7 @@ class Auditoria(Base):
     estado      = Column(Enum(EstadoAuditoriaEnum), default=EstadoAuditoriaEnum.planificada)
     fecha_programada = Column(DateTime, nullable=False)
     fecha_ejecucion  = Column(DateTime, nullable=True)
-    fecha_creacion   = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion   = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     empresa_id  = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
     area_id     = Column(UUID(as_uuid=True), ForeignKey("areas.id"), nullable=True)
@@ -56,7 +56,7 @@ class Hallazgo(Base):
     clasificacion  = Column(Enum(ClasificacionHallazgoEnum), nullable=False)
     evidencia      = Column(Text, nullable=True)
     recomendacion  = Column(Text, nullable=True)
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     auditoria_id = Column(UUID(as_uuid=True),
                           ForeignKey("auditorias.id", ondelete="CASCADE"),
@@ -75,7 +75,7 @@ class NoConformidad(Base):
     evidencia_cierre = Column(Text, nullable=True)
     fecha_limite   = Column(DateTime, nullable=False)
     fecha_cierre   = Column(DateTime, nullable=True)
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     hallazgo_id    = Column(UUID(as_uuid=True),
                             ForeignKey("hallazgos.id", ondelete="CASCADE"),

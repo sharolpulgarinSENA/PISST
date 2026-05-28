@@ -46,6 +46,12 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
 
+    if user.debe_cambiar_password:
+        raise HTTPException(
+            status_code=403,
+            detail="debe_cambiar_password"
+        )
+
     # Verificar sesión única: si el token no coincide con la sesión activa en BD
     if session_id is not None and str(user.session_token) != session_id:
         raise HTTPException(

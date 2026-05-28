@@ -14,6 +14,9 @@ from app.models.empresa import Empresa
 from app.services.email_service import enviar_correo_bienvenida
 import secrets
 import string
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["Administración"])
 
@@ -132,7 +135,7 @@ def crear_usuario_sst(
         password_temporal=password_temporal
     )
     if not enviado:
-        print(f"⚠️ Correo no enviado a {nuevo_sst.email}")
+        logger.warning(f"Correo no enviado a {nuevo_sst.email}")
 
     return {
         "mensaje": "Usuario SST creado exitosamente",
@@ -181,7 +184,7 @@ def crear_usuario_gerencia(
         password_temporal=password_temporal
     )
     if not enviado:
-        print(f"⚠️ Correo no enviado a {nuevo_gerencia.email}")
+        logger.warning(f"Correo no enviado a {nuevo_gerencia.email}")
 
     return {
         "mensaje": "Usuario Gerencia creado exitosamente",

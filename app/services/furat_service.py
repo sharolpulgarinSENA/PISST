@@ -7,7 +7,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, 
 from reportlab.lib.units import inch, cm
 from sqlalchemy.orm import Session
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import io
 
 from app.models.incidente import Incidente
@@ -82,7 +82,7 @@ def generar_furat(db: Session, incidente_id: UUID, empresa_id: UUID) -> bytes:
 
     datos_empresa = [
          ["Razón Social", razon_social,
-         "Fecha del reporte", datetime.utcnow().strftime("%d/%m/%Y")],
+         "Fecha del reporte", datetime.now(timezone.utc).replace(tzinfo=None).strftime("%d/%m/%Y")],
         ["NIT", nit, "Ciudad", "N/A"],
     ]
 
@@ -217,7 +217,7 @@ def generar_furat(db: Session, incidente_id: UUID, empresa_id: UUID) -> bytes:
 
     # ── Pie de página ─────────────────────────────────────────────
     elementos.append(Paragraph(
-        f"Documento generado por PISST — {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} — ID: {incidente_id}",
+        f"Documento generado por PISST — {datetime.now(timezone.utc).replace(tzinfo=None).strftime('%d/%m/%Y %H:%M')} — ID: {incidente_id}",
         style_subtitle
     ))
 

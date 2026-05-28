@@ -3,13 +3,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from fastapi import HTTPException
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.incidente import Incidente, EstadoIncidenteEnum
 from app.models.lesion import Lesion
 from app.models.testigo import Testigo
 from app.models.investigacion import Investigacion
 from app.models.accion_correctiva import AccionCorrectiva
+from app.services.audit_service import registrar_auditoria
 from app.schemas.incidente import (
     IncidenteCreate, IncidenteUpdate, IncidenteEstadoUpdate,
     InvestigacionCreate, AccionCorrectivaCreate, AccionCorrectivaUpdate
@@ -19,14 +20,14 @@ from app.schemas.incidente import (
 # ── Incidentes ────────────────────────────────────────────────────
 
 def get_all_incidentes(db: Session, empresa_id: UUID,
-                       estado: str = None, tipo: str = None):
-    """Retorna todos los incidentes de la empresa con filtros opcionales."""
+                       estado: str = None, tipo: str = None,
+                       skip: int = 0, limit: int = 50):
     query = db.query(Incidente).filter(Incidente.empresa_id == empresa_id)
     if estado:
         query = query.filter(Incidente.estado == estado)
     if tipo:
         query = query.filter(Incidente.tipo == tipo)
-    return query.order_by(Incidente.fecha_creacion.desc()).all()
+    return query.order_by(Incidente.fecha_creacion.desc()).offset(skip).limit(limit).all()
 
 
 def get_incidente_by_id(db: Session, incidente_id: UUID, empresa_id: UUID):
@@ -97,7 +98,10 @@ def update_estado_incidente(db: Session, incidente_id: UUID,
             )
 
     incidente.estado = nuevo_estado
-    incidente.fecha_actualizacion = datetime.utcnow()
+    incidente.fecha_actualizacion = datetime.now(timezone.utc).replace(tzinfo=None)
+    registrar_auditoria(db, accion="cambiar_estado_incidente", entidad="incidentes",
+                        entidad_id=str(incidente_id),
+                        detalle=f"Estado cambiado a {nuevo_estado}")
     db.commit()
     db.refresh(incidente)
     return incidente
@@ -180,7 +184,10 @@ def update_accion_correctiva(db: Session, accion_id: UUID,
         setattr(accion, campo, valor)
 
     if datos.estado == "completada":
-        accion.fecha_cierre = datetime.utcnow()
+        accion.fecha_cierre = datetime.now(timezone.utc).replace(tzinfo=None)
+        registrar_auditoria(db, accion="completar_accion_correctiva", entidad="acciones_correctivas",
+                            entidad_id=str(accion_id),
+                            detalle="Acción correctiva marcada como completada")
 
     db.commit()
     db.refresh(accion)

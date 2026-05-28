@@ -1,6 +1,7 @@
 # app/services/usuario_service.py
 import secrets
 import string
+import logging
 from uuid import UUID
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -11,6 +12,9 @@ from app.core.security import get_password_hash
 from app.services.email_service import enviar_correo_bienvenida
 from app.models.area import Area
 from app.models.cargo import Cargo
+from app.services.audit_service import registrar_auditoria
+
+logger = logging.getLogger(__name__)
 
 
 def generar_password_temporal(longitud: int = 10) -> str:
@@ -18,8 +22,11 @@ def generar_password_temporal(longitud: int = 10) -> str:
     return ''.join(secrets.choice(caracteres) for _ in range(longitud))
 
 
-def get_all_users(db: Session, empresa_id: UUID):
-    return db.query(User).filter(User.empresa_id == empresa_id).all()
+def get_all_users(db: Session, empresa_id: UUID, skip: int = 0, limit: int = 50):
+    return db.query(User).filter(
+        User.empresa_id == empresa_id,
+        User.activo == True
+    ).offset(skip).limit(limit).all()
 
 
 def get_user_by_id(db: Session, usuario_id: UUID, empresa_id: UUID):
@@ -77,9 +84,13 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
         empresa_id=empresa_id,
         area_id=area_id,
         cargo_id=cargo_id,
-        activo=True
+        activo=True,
+        debe_cambiar_password=True
     )
     db.add(nuevo_usuario)
+    registrar_auditoria(db, accion="crear_usuario", entidad="users",
+                        entidad_id=str(empresa_id),
+                        detalle=f"Usuario {datos.email} creado con rol {datos.role}")
     db.commit()
     db.refresh(nuevo_usuario)
 
@@ -89,7 +100,7 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
         password_temporal=password_temporal
     )
     if not enviado:
-        print(f"⚠️ Correo no enviado a {nuevo_usuario.email}")
+        logger.warning(f"Correo no enviado a {nuevo_usuario.email}")
 
     return nuevo_usuario
 

@@ -20,12 +20,13 @@ router = APIRouter(prefix="/auditorias", tags=["Auditorías Internas"])
 
 @router.get("/")
 def listar_auditorias(
+    skip: int = 0,
+    limit: int = 50,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst", "gerencia"))
 ):
-    """Lista todas las auditorías de la empresa."""
     return auditoria_service.get_all_auditorias(
-        db, current_user.empresa_id
+        db, current_user.empresa_id, skip, limit
     )
 
 

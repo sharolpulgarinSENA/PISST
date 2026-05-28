@@ -1,6 +1,9 @@
 # app/services/email_service.py
 import httpx
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -49,13 +52,13 @@ def enviar_correo_reset(email_destino: str, nombre: str, token: str) -> bool:
     try:
         response = httpx.post(RESEND_API_URL, json=payload, headers=headers, timeout=10.0)
         if response.status_code in [200, 201]:
-            print(f"✅ Correo enviado. ID: {response.json().get('id')}")
+            logger.info(f"Correo enviado. ID: {response.json().get('id')}")
             return True
         else:
-            print(f"❌ Error {response.status_code}: {response.text}")
+            logger.error(f"Error {response.status_code}: {response.text}")
             return False
     except Exception as e:
-        print(f"❌ Excepción: {str(e)}")
+        logger.error(f"Excepción al enviar correo: {str(e)}")
         return False
 
 
@@ -99,13 +102,13 @@ def enviar_correo_bienvenida(email_destino: str, nombre: str, password_temporal:
     try:
         response = httpx.post(RESEND_API_URL, json=payload, headers=headers, timeout=10.0)
         if response.status_code in [200, 201]:
-            print(f"✅ Correo bienvenida enviado. ID: {response.json().get('id')}")
+            logger.info(f"Correo bienvenida enviado. ID: {response.json().get('id')}")
             return True
         else:
-            print(f"❌ Error {response.status_code}: {response.text}")
+            logger.error(f"Error {response.status_code}: {response.text}")
             return False
     except Exception as e:
-        print(f"❌ Excepción: {str(e)}")
+        logger.error(f"Excepción al enviar correo de bienvenida: {str(e)}")
         return False
     
     

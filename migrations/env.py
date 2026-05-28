@@ -26,6 +26,7 @@ from app.models import (
     Peligro, EvaluacionRiesgo, MedidaControl,
     Auditoria, Hallazgo, NoConformidad
     )
+from app.models.audit_log import AuditLog
 
 from app.core.database import Base
 target_metadata = Base.metadata
