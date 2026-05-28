@@ -1,5 +1,5 @@
 # app/schemas/usuario_schema.py
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional
 from uuid import UUID
 from app.models.user import RoleEnum
@@ -30,6 +30,4 @@ class UsuarioResponse(BaseModel):
     area_id: Optional[UUID] = None
     cargo_id: Optional[UUID] = None
 
-    class Config:
-        from_attributes = True
-        
+    model_config = ConfigDict(from_attributes=True)

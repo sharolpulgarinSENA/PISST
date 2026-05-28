@@ -1,5 +1,5 @@
 # app/schemas/riesgo.py
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -24,8 +24,7 @@ class PeligroResponse(BaseModel):
     empresa_id: UUID
     area_id: Optional[UUID]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Evaluación de Riesgo ──────────────────────────────────────────
@@ -44,8 +43,7 @@ class EvaluacionRiesgoResponse(BaseModel):
     fecha_evaluacion: datetime
     peligro_id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Medida de Control ─────────────────────────────────────────────
@@ -70,5 +68,4 @@ class MedidaControlResponse(BaseModel):
     fecha_limite: Optional[datetime]
     peligro_id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

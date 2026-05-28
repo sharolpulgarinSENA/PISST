@@ -1,5 +1,5 @@
 # app/schemas/incidente.py
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
@@ -18,8 +18,7 @@ class LesionResponse(BaseModel):
     parte_afectada: Optional[str]
     incapacidad_dias: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Schemas de Testigo ────────────────────────────────────────────
@@ -33,8 +32,7 @@ class TestigoResponse(BaseModel):
     nombre: str
     relato: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Schemas de Incidente ──────────────────────────────────────────
@@ -72,8 +70,7 @@ class IncidenteResponse(BaseModel):
     lesion: Optional[LesionResponse]
     testigos: list[TestigoResponse]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Schemas de Investigación ──────────────────────────────────────
@@ -96,8 +93,7 @@ class InvestigacionResponse(BaseModel):
     lecciones_aprendidas: Optional[str]
     incidente_id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Schemas de Acción Correctiva ──────────────────────────────────
@@ -126,5 +122,4 @@ class AccionCorrectivaResponse(BaseModel):
     incidente_id: UUID
     responsable_id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

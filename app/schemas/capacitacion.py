@@ -1,5 +1,5 @@
 # app/schemas/capacitacion.py
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
@@ -21,8 +21,7 @@ class CapacitacionResponse(BaseModel):
     activo: bool
     empresa_id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Sesión ────────────────────────────────────────────────────────
@@ -39,8 +38,7 @@ class SesionResponse(BaseModel):
     activa: bool
     capacitacion_id: UUID
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Asistencia ────────────────────────────────────────────────────
@@ -57,8 +55,7 @@ class AsistenciaResponse(BaseModel):
     empleado_id: UUID
     fecha_registro: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Evaluación ────────────────────────────────────────────────────
@@ -79,8 +76,7 @@ class PreguntaResponse(BaseModel):
     opcion_c: str
     opcion_d: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class EvaluacionCreate(BaseModel):
     titulo: str
@@ -95,8 +91,7 @@ class EvaluacionResponse(BaseModel):
     sesion_id: UUID
     preguntas: List[PreguntaResponse]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Respuesta del Empleado ────────────────────────────────────────
