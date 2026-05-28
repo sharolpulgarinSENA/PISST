@@ -12,6 +12,7 @@ from app.core.security import get_password_hash
 from app.services.email_service import enviar_correo_bienvenida
 from app.models.area import Area
 from app.models.cargo import Cargo
+from app.services.audit_service import registrar_auditoria
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,9 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
         debe_cambiar_password=True
     )
     db.add(nuevo_usuario)
+    registrar_auditoria(db, accion="crear_usuario", entidad="users",
+                        entidad_id=str(empresa_id),
+                        detalle=f"Usuario {datos.email} creado con rol {datos.role}")
     db.commit()
     db.refresh(nuevo_usuario)
 
