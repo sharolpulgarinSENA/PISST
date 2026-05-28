@@ -83,7 +83,8 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
         empresa_id=empresa_id,
         area_id=area_id,
         cargo_id=cargo_id,
-        activo=True
+        activo=True,
+        debe_cambiar_password=True
     )
     db.add(nuevo_usuario)
     db.commit()

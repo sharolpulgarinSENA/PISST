@@ -40,6 +40,7 @@ class User(Base):
     intentos_fallidos = Column(Integer, default=0, nullable=False)
     bloqueado_hasta = Column(DateTime, nullable=True)
     session_token = Column(String(64), nullable=True)
+    debe_cambiar_password = Column(Boolean, default=False, nullable=False)
 
     area  = relationship("Area",  foreign_keys=[area_id])
     cargo = relationship("Cargo", foreign_keys=[cargo_id])

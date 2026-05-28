@@ -1,5 +1,8 @@
 # app/routers/auth_router.py
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import HTTPBearer
+
+_bearer = HTTPBearer()
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -11,8 +14,9 @@ logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta, timezone
 
 from app.core.database import get_db
-from app.core.security import get_password_hash, verify_password, create_access_token
-from app.core.deps import require_role
+from app.core.security import get_password_hash, verify_password, create_access_token, decode_token
+from jose import JWTError
+from app.core.deps import require_role, get_current_user
 from app.models.user import User, RoleEnum
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -45,6 +49,10 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
+
+class CambiarPasswordRequest(BaseModel):
+    password_actual: str
+    nueva_password: str
 
 
 # ── Función auxiliar ─────────────────────────────────────────────
@@ -248,3 +256,29 @@ def reset_password(
     db.commit()
 
     return {"mensaje": "Contraseña actualizada exitosamente"}
+
+
+@router.post("/cambiar-password")
+def cambiar_password(
+    datos: CambiarPasswordRequest,
+    db: Session = Depends(get_db),
+    credentials = Depends(_bearer)
+):
+    try:
+        payload = decode_token(credentials.credentials)
+        user_id = payload.get("sub")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+    user = db.query(User).filter(User.id == user_id, User.activo == True).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario no encontrado")
+
+    if not verify_password(datos.password_actual, user.password_hash):
+        raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
+
+    user.password_hash = get_password_hash(datos.nueva_password)
+    user.debe_cambiar_password = False
+    db.commit()
+
+    return {"mensaje": "Contraseña cambiada exitosamente"}
