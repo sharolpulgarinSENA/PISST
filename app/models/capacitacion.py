@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import Column, String, Text, DateTime, Integer, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
 
 
@@ -15,7 +15,7 @@ class Capacitacion(Base):
     objetivos   = Column(Text)
     duracion_horas = Column(Integer, default=1)
     activo      = Column(Boolean, default=True)
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     empresa_id    = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
     facilitador_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
@@ -31,7 +31,7 @@ class SesionCapacitacion(Base):
     fecha  = Column(DateTime, nullable=False)
     lugar  = Column(String(300))
     activa = Column(Boolean, default=True)
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     capacitacion_id = Column(UUID(as_uuid=True),
                              ForeignKey("capacitaciones.id", ondelete="CASCADE"),
@@ -47,7 +47,7 @@ class Asistencia(Base):
 
     id     = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     estado = Column(String(20), default="presente")  # presente, ausente, justificado
-    fecha_registro = Column(DateTime, default=datetime.utcnow)
+    fecha_registro = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     sesion_id   = Column(UUID(as_uuid=True),
                          ForeignKey("sesiones_capacitacion.id", ondelete="CASCADE"),
@@ -64,7 +64,7 @@ class Evaluacion(Base):
     id                  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     titulo              = Column(String(300), nullable=False)
     puntaje_minimo      = Column(Integer, default=60)  # % mínimo para aprobar
-    fecha_creacion      = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion      = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     sesion_id = Column(UUID(as_uuid=True),
                        ForeignKey("sesiones_capacitacion.id", ondelete="CASCADE"),
@@ -100,7 +100,7 @@ class RespuestaEmpleado(Base):
     es_correcta    = Column(Boolean, default=False)
     puntaje_final  = Column(Integer, default=0)  # % obtenido
     aprobado       = Column(Boolean, default=False)
-    fecha_respuesta = Column(DateTime, default=datetime.utcnow)
+    fecha_respuesta = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     evaluacion_id = Column(UUID(as_uuid=True), ForeignKey("evaluaciones.id"), nullable=False)
     empleado_id   = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)

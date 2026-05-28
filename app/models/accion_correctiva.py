@@ -4,7 +4,7 @@ import enum
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
 
 
@@ -33,7 +33,7 @@ class AccionCorrectiva(Base):
 
     fecha_limite  = Column(DateTime, nullable=False)
     fecha_cierre  = Column(DateTime, nullable=True)
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Relaciones
     incidente_id   = Column(UUID(as_uuid=True), ForeignKey("incidentes.id"), nullable=False)

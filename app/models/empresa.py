@@ -2,7 +2,7 @@
 import uuid
 from sqlalchemy import Column, String, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
 
 class Empresa(Base):
@@ -14,6 +14,6 @@ class Empresa(Base):
     nit = Column(String(20), unique=True, nullable=False)  # unique = no duplicados
     sector = Column(String(100))
     activo = Column(Boolean, default=True)
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 

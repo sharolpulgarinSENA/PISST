@@ -4,7 +4,7 @@ import enum
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Enum, Integer, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
 
 
@@ -42,8 +42,8 @@ class Incidente(Base):
     descripcion = Column(Text, nullable=False)
     estado      = Column(Enum(EstadoIncidenteEnum), default=EstadoIncidenteEnum.borrador)
 
-    fecha_creacion      = Column(DateTime, default=datetime.utcnow)
-    fecha_actualizacion = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    fecha_creacion      = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    fecha_actualizacion = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     empresa_id             = Column(UUID(as_uuid=True), ForeignKey("empresas.id"), nullable=False)
     trabajador_afectado_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)

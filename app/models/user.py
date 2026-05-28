@@ -4,7 +4,7 @@ import enum
 from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Integer, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
 
 class RoleEnum(str, enum.Enum):
@@ -33,7 +33,7 @@ class User(Base):
                       nullable=True)
 
     activo = Column(Boolean, default=True)
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     reset_token = Column(String(255), nullable=True)
     reset_token_expira = Column(DateTime, nullable=True)
     refresh_token = Column(String(255), nullable=True)
