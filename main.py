@@ -49,16 +49,15 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "https://pisst-frontend.vercel.app",
-    os.getenv("FRONTEND_URL", ""),
-]
+_prod_origins = ["https://pisst-frontend.vercel.app"]
+if os.getenv("FRONTEND_URL"):
+    _prod_origins.append(os.getenv("FRONTEND_URL"))
+
+origins = _prod_origins + (["http://localhost:5173", "http://localhost:3000"] if _dev else [])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o for o in origins if o],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
