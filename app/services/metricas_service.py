@@ -4,8 +4,8 @@ from sqlalchemy import func
 from uuid import UUID
 from datetime import datetime, timedelta
 
-from app.models.incidente import Incidente, EstadoIncidenteEnum
-from app.models.accion_correctiva import AccionCorrectiva
+from app.models.incidente import Incidente, TipoIncidenteEnum, EstadoIncidenteEnum
+from app.models.accion_correctiva import AccionCorrectiva, EstadoAccionEnum
 from app.models.capacitacion import Capacitacion, SesionCapacitacion, Asistencia
 from app.models.user import User, RoleEnum
 
@@ -20,7 +20,7 @@ def get_kpis(db: Session, empresa_id: UUID):
     inicio_anio = datetime(datetime.utcnow().year, 1, 1)
     total_accidentes = db.query(Incidente).filter(
         Incidente.empresa_id == empresa_id,
-        Incidente.tipo == "accidente",
+        Incidente.tipo == TipoIncidenteEnum.accidente,
         Incidente.fecha >= inicio_anio
     ).count()
 
@@ -79,7 +79,7 @@ def get_dashboard_gerencia(db: Session, empresa_id: UUID):
         .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)\
         .filter(
             Incidente.empresa_id == empresa_id,
-            AccionCorrectiva.estado != "completada",
+            AccionCorrectiva.estado != EstadoAccionEnum.completada,
             AccionCorrectiva.fecha_limite < datetime.utcnow()
         ).count()
 
@@ -91,7 +91,7 @@ def get_dashboard_gerencia(db: Session, empresa_id: UUID):
         .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)\
         .filter(
             Incidente.empresa_id == empresa_id,
-            AccionCorrectiva.estado == "completada"
+            AccionCorrectiva.estado == EstadoAccionEnum.completada
         ).count()
 
     cumplimiento = round((acciones_completadas / total_acciones) * 100) \
@@ -112,7 +112,7 @@ def get_alertas(db: Session, empresa_id: UUID):
 
     sin_investigacion = db.query(Incidente).filter(
         Incidente.empresa_id == empresa_id,
-        Incidente.estado == "abierto",
+        Incidente.estado == EstadoIncidenteEnum.abierto,
         ~Incidente.investigacion.has()
     ).count()
 
@@ -128,7 +128,7 @@ def get_alertas(db: Session, empresa_id: UUID):
         .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)\
         .filter(
             Incidente.empresa_id == empresa_id,
-            AccionCorrectiva.estado != "completada",
+            AccionCorrectiva.estado != EstadoAccionEnum.completada,
             AccionCorrectiva.fecha_limite < datetime.utcnow()
         ).count()
 
@@ -145,7 +145,7 @@ def get_alertas(db: Session, empresa_id: UUID):
         .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)\
         .filter(
             Incidente.empresa_id == empresa_id,
-            AccionCorrectiva.estado != "completada",
+            AccionCorrectiva.estado != EstadoAccionEnum.completada,
             AccionCorrectiva.fecha_limite >= datetime.utcnow(),
             AccionCorrectiva.fecha_limite <= proxima_semana
         ).count()
