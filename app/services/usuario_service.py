@@ -19,7 +19,10 @@ def generar_password_temporal(longitud: int = 10) -> str:
 
 
 def get_all_users(db: Session, empresa_id: UUID):
-    return db.query(User).filter(User.empresa_id == empresa_id).all()
+    return db.query(User).filter(
+        User.empresa_id == empresa_id,
+        User.activo == True
+    ).all()
 
 
 def get_user_by_id(db: Session, usuario_id: UUID, empresa_id: UUID):
