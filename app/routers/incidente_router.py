@@ -25,16 +25,13 @@ router = APIRouter(prefix="/incidentes", tags=["Incidentes"])
 def listar_incidentes(
     estado: Optional[str] = None,
     tipo: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Lista todos los incidentes de la empresa.
-    Filtros opcionales: estado y tipo.
-    Accesible para SST y Gerencia.
-    """
     return incidente_service.get_all_incidentes(
-        db, current_user.empresa_id, estado, tipo
+        db, current_user.empresa_id, estado, tipo, skip, limit
     )
 
 

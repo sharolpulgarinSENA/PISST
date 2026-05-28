@@ -23,12 +23,13 @@ router = APIRouter(prefix="/riesgos", tags=["Evaluación de Riesgos"])
 def listar_peligros(
     tipo: Optional[str] = None,
     area_id: Optional[UUID] = None,
+    skip: int = 0,
+    limit: int = 50,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Lista todos los peligros identificados con filtros opcionales."""
     return riesgo_service.get_all_peligros(
-        db, current_user.empresa_id, tipo, area_id
+        db, current_user.empresa_id, tipo, area_id, skip, limit
     )
 
 

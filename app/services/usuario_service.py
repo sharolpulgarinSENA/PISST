@@ -21,11 +21,11 @@ def generar_password_temporal(longitud: int = 10) -> str:
     return ''.join(secrets.choice(caracteres) for _ in range(longitud))
 
 
-def get_all_users(db: Session, empresa_id: UUID):
+def get_all_users(db: Session, empresa_id: UUID, skip: int = 0, limit: int = 50):
     return db.query(User).filter(
         User.empresa_id == empresa_id,
         User.activo == True
-    ).all()
+    ).offset(skip).limit(limit).all()
 
 
 def get_user_by_id(db: Session, usuario_id: UUID, empresa_id: UUID):

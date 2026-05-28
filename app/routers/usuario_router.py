@@ -20,10 +20,12 @@ router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
 @router.get("/", response_model=List[UsuarioResponse])
 def listar_usuarios(
+    skip: int = 0,
+    limit: int = 50,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst"))
 ):
-    return get_all_users(db, current_user.empresa_id)
+    return get_all_users(db, current_user.empresa_id, skip, limit)
 
 
 @router.get("/{usuario_id}", response_model=UsuarioResponse)

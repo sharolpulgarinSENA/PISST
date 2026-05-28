@@ -33,7 +33,8 @@ def calcular_nivel_riesgo(probabilidad: int, severidad: int) -> NivelRiesgoEnum:
 # ── Peligros ──────────────────────────────────────────────────────
 
 def get_all_peligros(db: Session, empresa_id: UUID,
-                     tipo: str = None, area_id: UUID = None):
+                     tipo: str = None, area_id: UUID = None,
+                     skip: int = 0, limit: int = 50):
     query = db.query(Peligro).filter(
         Peligro.empresa_id == empresa_id,
         Peligro.activo == True
@@ -42,7 +43,7 @@ def get_all_peligros(db: Session, empresa_id: UUID,
         query = query.filter(Peligro.tipo == tipo)
     if area_id:
         query = query.filter(Peligro.area_id == area_id)
-    return query.order_by(Peligro.fecha_creacion.desc()).all()
+    return query.order_by(Peligro.fecha_creacion.desc()).offset(skip).limit(limit).all()
 
 
 def create_peligro(db: Session, datos: PeligroCreate, empresa_id: UUID):

@@ -16,10 +16,10 @@ from app.schemas.auditoria import (
 
 # ── Auditorías ────────────────────────────────────────────────────
 
-def get_all_auditorias(db: Session, empresa_id: UUID):
+def get_all_auditorias(db: Session, empresa_id: UUID, skip: int = 0, limit: int = 50):
     return db.query(Auditoria)\
         .filter(Auditoria.empresa_id == empresa_id)\
-        .order_by(Auditoria.fecha_programada.desc()).all()
+        .order_by(Auditoria.fecha_programada.desc()).offset(skip).limit(limit).all()
 
 
 def create_auditoria(db: Session, datos: AuditoriaCreate, empresa_id: UUID):
