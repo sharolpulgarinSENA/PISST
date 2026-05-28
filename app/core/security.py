@@ -1,15 +1,16 @@
 # app/core/security.py
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
+import warnings
 from passlib.context import CryptContext
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
-# CryptContext: configura el algoritmo de hashing
-# bcrypt es el estándar de la industria para contraseñas
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", ".*bcrypt.*")
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
