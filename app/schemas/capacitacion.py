@@ -5,6 +5,15 @@ from datetime import datetime
 from uuid import UUID
 
 
+# ── Área (respuesta embebida) ─────────────────────────────────────
+
+class AreaSimple(BaseModel):
+    id: UUID
+    nombre: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ── Capacitación ──────────────────────────────────────────────────
 
 class CapacitacionCreate(BaseModel):
@@ -12,6 +21,13 @@ class CapacitacionCreate(BaseModel):
     objetivos: Optional[str] = None
     duracion_horas: Optional[int] = 1
     facilitador_id: Optional[UUID] = None
+    area_ids: Optional[List[UUID]] = []   # ✅ nuevo
+
+class CapacitacionUpdate(BaseModel):
+    activo: Optional[bool] = None
+    titulo: Optional[str] = None           # ✅ nuevo
+    objetivos: Optional[str] = None        # ✅ nuevo
+    duracion_horas: Optional[int] = None   # ✅ nuevo         # ✅ nuevo — para suspender/activar
 
 class CapacitacionResponse(BaseModel):
     id: UUID
@@ -20,6 +36,7 @@ class CapacitacionResponse(BaseModel):
     duracion_horas: int
     activo: bool
     empresa_id: UUID
+    areas: List[AreaSimple] = []          # ✅ nuevo
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -40,13 +57,17 @@ class SesionResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class SesionUpdate(BaseModel):
+    fecha: Optional[datetime] = None
+    lugar: Optional[str] = None
+
 
 # ── Asistencia ────────────────────────────────────────────────────
 
 class AsistenciaCreate(BaseModel):
     sesion_id: UUID
     empleado_id: UUID
-    estado: Optional[str] = "presente"  # presente, ausente, justificado
+    estado: Optional[str] = "presente"
 
 class AsistenciaResponse(BaseModel):
     id: UUID
@@ -66,7 +87,7 @@ class PreguntaCreate(BaseModel):
     opcion_b: str
     opcion_c: str
     opcion_d: str
-    respuesta_correcta: str  # "a", "b", "c" o "d"
+    respuesta_correcta: str
 
 class PreguntaResponse(BaseModel):
     id: UUID
@@ -98,7 +119,7 @@ class EvaluacionResponse(BaseModel):
 
 class RespuestaCreate(BaseModel):
     pregunta_id: UUID
-    respuesta_dada: str  # "a", "b", "c" o "d"
+    respuesta_dada: str
 
 class ResponderEvaluacionRequest(BaseModel):
     evaluacion_id: UUID

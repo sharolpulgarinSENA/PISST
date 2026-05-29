@@ -25,6 +25,8 @@ def get_all_capacitaciones(db: Session, empresa_id: UUID):
 
 
 def create_capacitacion(db: Session, datos: CapacitacionCreate, empresa_id: UUID):
+    from app.models.area import Area
+
     capacitacion = Capacitacion(
         titulo=datos.titulo,
         objetivos=datos.objetivos,
@@ -33,9 +35,53 @@ def create_capacitacion(db: Session, datos: CapacitacionCreate, empresa_id: UUID
         empresa_id=empresa_id
     )
     db.add(capacitacion)
+    db.flush()
+
+    if datos.area_ids:
+        areas = db.query(Area).filter(Area.id.in_(datos.area_ids)).all()
+        capacitacion.areas = areas
+
     db.commit()
     db.refresh(capacitacion)
     return capacitacion
+
+
+def update_capacitacion(db: Session, capacitacion_id: UUID, empresa_id: UUID, datos):
+    cap = db.query(Capacitacion).filter(
+        Capacitacion.id == capacitacion_id,
+        Capacitacion.empresa_id == empresa_id
+    ).first()
+
+    if not cap:
+        raise HTTPException(status_code=404, detail="Capacitación no encontrada")
+
+    if datos.activo is not None:
+        cap.activo = datos.activo
+    if datos.titulo is not None:
+        cap.titulo = datos.titulo
+    if datos.objetivos is not None:
+        cap.objetivos = datos.objetivos
+    if datos.duracion_horas is not None:
+        cap.duracion_horas = datos.duracion_horas
+
+    db.commit()
+    db.refresh(cap)
+    return cap
+
+
+def toggle_capacitacion(db: Session, capacitacion_id: UUID, empresa_id: UUID, activo: bool):
+    cap = db.query(Capacitacion).filter(
+        Capacitacion.id == capacitacion_id,
+        Capacitacion.empresa_id == empresa_id
+    ).first()
+
+    if not cap:
+        raise HTTPException(status_code=404, detail="Capacitación no encontrada")
+
+    cap.activo = activo
+    db.commit()
+    db.refresh(cap)
+    return cap
 
 
 # ── Sesiones ──────────────────────────────────────────────────────
@@ -67,6 +113,25 @@ def get_sesiones_by_capacitacion(db: Session, capacitacion_id: UUID, empresa_id:
     if not cap:
         raise HTTPException(status_code=404, detail="Capacitación no encontrada")
     return cap.sesiones
+
+
+def reprogramar_sesion(db: Session, sesion_id: UUID, empresa_id: UUID, datos):
+    sesion = db.query(SesionCapacitacion).join(Capacitacion).filter(
+        SesionCapacitacion.id == sesion_id,
+        Capacitacion.empresa_id == empresa_id
+    ).first()
+
+    if not sesion:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+
+    if datos.fecha is not None:
+        sesion.fecha = datos.fecha
+    if datos.lugar is not None:
+        sesion.lugar = datos.lugar
+
+    db.commit()
+    db.refresh(sesion)
+    return sesion
 
 
 # ── Asistencia ────────────────────────────────────────────────────
@@ -169,7 +234,6 @@ def responder_evaluacion(db: Session, datos: ResponderEvaluacionRequest,
 
     db.commit()
 
-    # ✅ FIX Bug #1 — Persistir puntaje_final y aprobado en todas las respuestas
     db.query(RespuestaEmpleado).filter(
         RespuestaEmpleado.evaluacion_id == datos.evaluacion_id,
         RespuestaEmpleado.empleado_id == empleado_id
