@@ -1,10 +1,19 @@
 # app/models/capacitacion.py
 import uuid
-from sqlalchemy import Column, String, Text, DateTime, Integer, Boolean, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Integer, Boolean, ForeignKey, Table
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.core.database import Base
+
+
+# ✅ Tabla intermedia capacitacion_areas (muchos a muchos)
+capacitacion_areas = Table(
+    "capacitacion_areas",
+    Base.metadata,
+    Column("capacitacion_id", UUID(as_uuid=True), ForeignKey("capacitaciones.id", ondelete="CASCADE"), primary_key=True),
+    Column("area_id", UUID(as_uuid=True), ForeignKey("areas.id", ondelete="CASCADE"), primary_key=True)
+)
 
 
 class Capacitacion(Base):
@@ -22,6 +31,9 @@ class Capacitacion(Base):
 
     facilitador = relationship("User", foreign_keys=[facilitador_id])
     sesiones    = relationship("SesionCapacitacion", back_populates="capacitacion")
+
+    # ✅ Relación muchos a muchos con areas
+    areas = relationship("Area", secondary=capacitacion_areas, lazy="joined")
 
 
 class SesionCapacitacion(Base):
@@ -46,7 +58,7 @@ class Asistencia(Base):
     __tablename__ = "asistencias"
 
     id     = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    estado = Column(String(20), default="presente")  # presente, ausente, justificado
+    estado = Column(String(20), default="presente")
     fecha_registro = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     sesion_id   = Column(UUID(as_uuid=True),
@@ -63,7 +75,7 @@ class Evaluacion(Base):
 
     id                  = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     titulo              = Column(String(300), nullable=False)
-    puntaje_minimo      = Column(Integer, default=60)  # % mínimo para aprobar
+    puntaje_minimo      = Column(Integer, default=60)
     fecha_creacion      = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     sesion_id = Column(UUID(as_uuid=True),
@@ -83,7 +95,7 @@ class Pregunta(Base):
     opcion_b       = Column(String(500), nullable=False)
     opcion_c       = Column(String(500), nullable=False)
     opcion_d       = Column(String(500), nullable=False)
-    respuesta_correcta = Column(String(1), nullable=False)  # "a", "b", "c" o "d"
+    respuesta_correcta = Column(String(1), nullable=False)
 
     evaluacion_id = Column(UUID(as_uuid=True),
                            ForeignKey("evaluaciones.id", ondelete="CASCADE"),
@@ -96,9 +108,9 @@ class RespuestaEmpleado(Base):
     __tablename__ = "respuestas_empleado"
 
     id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    respuesta_dada = Column(String(1), nullable=False)  # "a", "b", "c" o "d"
+    respuesta_dada = Column(String(1), nullable=False)
     es_correcta    = Column(Boolean, default=False)
-    puntaje_final  = Column(Integer, default=0)  # % obtenido
+    puntaje_final  = Column(Integer, default=0)
     aprobado       = Column(Boolean, default=False)
     fecha_respuesta = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 

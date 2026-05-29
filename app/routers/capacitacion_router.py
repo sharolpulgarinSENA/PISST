@@ -7,8 +7,8 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.schemas.capacitacion import (
-    CapacitacionCreate, CapacitacionResponse,
-    SesionCreate, SesionResponse,
+    CapacitacionCreate, CapacitacionResponse, CapacitacionUpdate,
+    SesionCreate, SesionResponse, SesionUpdate,
     AsistenciaCreate, AsistenciaResponse,
     EvaluacionCreate, EvaluacionResponse,
     ResponderEvaluacionRequest, ResultadoEvaluacionResponse
@@ -43,6 +43,22 @@ def crear_capacitacion(
     )
 
 
+@router.patch("/{capacitacion_id}", response_model=CapacitacionResponse)
+def actualizar_capacitacion(
+    capacitacion_id: UUID,
+    datos: CapacitacionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst"))
+):
+    """
+    Actualiza una capacitación — puede suspender/activar,
+    cambiar título, objetivos o duración.
+    """
+    return capacitacion_service.update_capacitacion(
+        db, capacitacion_id, current_user.empresa_id, datos
+    )
+
+
 @router.get("/cobertura")
 def cobertura_capacitaciones(
     db: Session = Depends(get_db),
@@ -65,6 +81,22 @@ def crear_sesion(
     """Programa una sesión de capacitación."""
     return capacitacion_service.create_sesion(
         db, datos, current_user.empresa_id
+    )
+
+
+@router.patch("/sesiones/{sesion_id}", response_model=SesionResponse)
+def reprogramar_sesion(
+    sesion_id: UUID,
+    datos: SesionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst"))
+):
+    """
+    Reprograma una sesión de capacitación.
+    Puede cambiar fecha, lugar o ambos.
+    """
+    return capacitacion_service.reprogramar_sesion(
+        db, sesion_id, current_user.empresa_id, datos
     )
 
 
@@ -141,6 +173,7 @@ def responder_evaluacion(
         db, datos, current_user.id
     )
 
+
 # ── Certificados ──────────────────────────────────────────────────
 
 @router.get("/evaluaciones/{evaluacion_id}/certificado/{empleado_id}")
@@ -155,9 +188,9 @@ def descargar_certificado(
     Solo disponible si el empleado aprobó.
     """
     from fastapi.responses import StreamingResponse
-    
+
     buffer = capacitacion_service.generar_certificado(db, evaluacion_id, empleado_id)
-    
+
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
@@ -165,3 +198,4 @@ def descargar_certificado(
             "Content-Disposition": f"attachment; filename=certificado_{empleado_id}.pdf"
         }
     )
+
