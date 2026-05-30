@@ -5,12 +5,16 @@ from uuid import UUID
 from typing import List
 
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_role
+from app.core.deps import require_role
 from app.models.user import User
 from app.schemas.auditoria import (
-    AuditoriaCreate, AuditoriaResponse,
-    HallazgoCreate, HallazgoResponse,
-    NoConformidadCreate, NoConformidadUpdate, NoConformidadResponse
+    AuditoriaCreate,
+    AuditoriaResponse,
+    HallazgoCreate,
+    HallazgoResponse,
+    NoConformidadCreate,
+    NoConformidadUpdate,
+    NoConformidadResponse,
 )
 from app.services import auditoria_service
 
@@ -19,12 +23,13 @@ router = APIRouter(prefix="/auditorias", tags=["Auditorías Internas"])
 
 # ── Auditorías ────────────────────────────────────────────────────
 
+
 @router.get("/", response_model=List[AuditoriaResponse])
 def listar_auditorias(
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst", "gerencia"))
+    current_user: User = Depends(require_role("sst", "gerencia")),
 ):
     return auditoria_service.get_all_auditorias(
         db, current_user.empresa_id, skip, limit
@@ -35,12 +40,10 @@ def listar_auditorias(
 def crear_auditoria(
     datos: AuditoriaCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst"))
+    current_user: User = Depends(require_role("sst")),
 ):
     """Planifica una nueva auditoría interna. Solo el Encargado SST."""
-    return auditoria_service.create_auditoria(
-        db, datos, current_user.empresa_id
-    )
+    return auditoria_service.create_auditoria(db, datos, current_user.empresa_id)
 
 
 @router.patch("/{auditoria_id}/estado", response_model=AuditoriaResponse)
@@ -48,7 +51,7 @@ def cambiar_estado_auditoria(
     auditoria_id: UUID,
     estado: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst"))
+    current_user: User = Depends(require_role("sst")),
 ):
     """Cambia el estado de la auditoría: planificada → en_ejecucion → completada."""
     return auditoria_service.cambiar_estado_auditoria(
@@ -60,7 +63,7 @@ def cambiar_estado_auditoria(
 def progreso_auditoria(
     auditoria_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst", "gerencia"))
+    current_user: User = Depends(require_role("sst", "gerencia")),
 ):
     """Retorna el % de no conformidades cerradas."""
     return auditoria_service.get_progreso_auditoria(
@@ -70,12 +73,15 @@ def progreso_auditoria(
 
 # ── Hallazgos ─────────────────────────────────────────────────────
 
-@router.post("/{auditoria_id}/hallazgos", response_model=HallazgoResponse, status_code=201)
+
+@router.post(
+    "/{auditoria_id}/hallazgos", response_model=HallazgoResponse, status_code=201
+)
 def crear_hallazgo(
     auditoria_id: UUID,
     datos: HallazgoCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst"))
+    current_user: User = Depends(require_role("sst")),
 ):
     """Registra un hallazgo durante la ejecución de la auditoría."""
     return auditoria_service.create_hallazgo(
@@ -87,7 +93,7 @@ def crear_hallazgo(
 def listar_hallazgos(
     auditoria_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst", "gerencia"))
+    current_user: User = Depends(require_role("sst", "gerencia")),
 ):
     """Lista todos los hallazgos de una auditoría."""
     return auditoria_service.get_hallazgos_by_auditoria(
@@ -97,17 +103,18 @@ def listar_hallazgos(
 
 # ── No Conformidades ──────────────────────────────────────────────
 
-@router.post("/hallazgos/{hallazgo_id}/nc", response_model=NoConformidadResponse, status_code=201)
+
+@router.post(
+    "/hallazgos/{hallazgo_id}/nc", response_model=NoConformidadResponse, status_code=201
+)
 def crear_no_conformidad(
     hallazgo_id: UUID,
     datos: NoConformidadCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst"))
+    current_user: User = Depends(require_role("sst")),
 ):
     """Crea una no conformidad a partir de un hallazgo."""
-    return auditoria_service.create_no_conformidad(
-        db, hallazgo_id, datos
-    )
+    return auditoria_service.create_no_conformidad(db, hallazgo_id, datos)
 
 
 @router.patch("/nc/{nc_id}", response_model=NoConformidadResponse)
@@ -115,7 +122,7 @@ def actualizar_no_conformidad(
     nc_id: UUID,
     datos: NoConformidadUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst"))
+    current_user: User = Depends(require_role("sst")),
 ):
     """Actualiza el estado de una NC. No cierra sin evidencia."""
     return auditoria_service.update_no_conformidad(db, nc_id, datos)

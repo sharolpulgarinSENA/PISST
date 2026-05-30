@@ -1,0 +1,16 @@
+[flake8]
+max-line-length = 100
+exclude =
+    migrations/,
+    migrations/versions/,
+    venv/,
+    __pycache__,
+    .git
+per-file-ignores =
+    migrations/*:F401,F811,W291
+    app/models/__init__.py:F401
+ignore =
+    E501,
+    W503,
+    E402,
+    E712

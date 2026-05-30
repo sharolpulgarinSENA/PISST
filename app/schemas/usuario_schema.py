@@ -5,7 +5,6 @@ from uuid import UUID
 from app.models.user import RoleEnum
 
 
-
 class UsuarioCreate(BaseModel):
     nombre: str
     email: EmailStr

@@ -12,7 +12,7 @@ from app.services.usuario_service import (
     get_all_users,
     get_user_by_id,
     create_user,
-    update_user
+    update_user,
 )
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
@@ -23,7 +23,7 @@ def listar_usuarios(
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst"))
+    current_user: User = Depends(require_role("sst")),
 ):
     return get_all_users(db, current_user.empresa_id, skip, limit)
 
@@ -32,7 +32,7 @@ def listar_usuarios(
 def obtener_usuario(
     usuario_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst"))
+    current_user: User = Depends(require_role("sst")),
 ):
     return get_user_by_id(db, usuario_id, current_user.empresa_id)
 
@@ -41,7 +41,7 @@ def obtener_usuario(
 def crear_usuario(
     datos: UsuarioCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst"))
+    current_user: User = Depends(require_role("sst")),
 ):
     return create_user(db, datos, current_user.empresa_id)
 
@@ -51,6 +51,6 @@ def actualizar_usuario(
     usuario_id: UUID,
     datos: UsuarioUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst"))
+    current_user: User = Depends(require_role("sst")),
 ):
     return update_user(db, usuario_id, datos, current_user.empresa_id)

@@ -21,6 +21,7 @@ def test_get_user_by_id_existente(db, empresa, usuario_sst):
 
 def test_get_user_by_id_inexistente(db, empresa):
     import uuid
+
     with pytest.raises(HTTPException) as exc:
         get_user_by_id(db, uuid.uuid4(), empresa.id)
     assert exc.value.status_code == 404

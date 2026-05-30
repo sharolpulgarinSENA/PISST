@@ -9,7 +9,12 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.chat_historial import ChatHistorial
-from app.models.incidente import Incidente, TipoIncidenteEnum, SeveridadEnum, EstadoIncidenteEnum
+from app.models.incidente import (
+    Incidente,
+    TipoIncidenteEnum,
+    SeveridadEnum,
+    EstadoIncidenteEnum,
+)
 from app.services.ai_service import chat_sasbot
 
 router = APIRouter(prefix="/chat", tags=["SASBOT - Chat IA"])
@@ -17,22 +22,25 @@ router = APIRouter(prefix="/chat", tags=["SASBOT - Chat IA"])
 
 # ── Schemas ───────────────────────────────────────────────────────
 
+
 class MensajeRequest(BaseModel):
     mensaje: str
 
+
 class ReporteRapidoRequest(BaseModel):
-    tipo: str        # "accidente", "condicion_insegura", "cuasi_accidente"
+    tipo: str  # "accidente", "condicion_insegura", "cuasi_accidente"
     descripcion: str
     lugar: Optional[str] = "No especificado"
 
 
 # ── Endpoints ─────────────────────────────────────────────────────
 
+
 @router.post("/mensaje")
 def enviar_mensaje(
     datos: MensajeRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Recibe un mensaje del empleado autenticado y retorna
@@ -40,25 +48,19 @@ def enviar_mensaje(
     Guarda cada conversación en el historial de la BD.
     """
     cargo = current_user.cargo.nombre if current_user.cargo else "empleado general"
-    area  = current_user.area.nombre  if current_user.area  else "área general"
+    area = current_user.area.nombre if current_user.area else "área general"
 
-    resultado = chat_sasbot(
-        mensaje=datos.mensaje,
-        cargo=cargo,
-        area=area
-    )
+    resultado = chat_sasbot(mensaje=datos.mensaje, cargo=cargo, area=area)
 
     historial_entrada = ChatHistorial(
-        mensaje=datos.mensaje,
-        respuesta=resultado["respuesta"],
-        user_id=current_user.id
+        mensaje=datos.mensaje, respuesta=resultado["respuesta"], user_id=current_user.id
     )
     db.add(historial_entrada)
     db.commit()
 
     return {
         "respuesta": resultado["respuesta"],
-        "modo_emergencia": resultado["modo_emergencia"]
+        "modo_emergencia": resultado["modo_emergencia"],
     }
 
 
@@ -67,7 +69,7 @@ def obtener_historial(
     pagina: int = 1,
     limite: int = 20,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Retorna el historial de conversaciones del usuario autenticado.
@@ -76,19 +78,17 @@ def obtener_historial(
     """
     offset = (pagina - 1) * limite
 
-    historial = db.query(ChatHistorial)\
-        .filter(ChatHistorial.user_id == current_user.id)\
-        .order_by(ChatHistorial.timestamp.desc())\
-        .offset(offset)\
-        .limit(limite)\
+    historial = (
+        db.query(ChatHistorial)
+        .filter(ChatHistorial.user_id == current_user.id)
+        .order_by(ChatHistorial.timestamp.desc())
+        .offset(offset)
+        .limit(limite)
         .all()
+    )
 
     return [
-        {
-            "mensaje": h.mensaje,
-            "respuesta": h.respuesta,
-            "timestamp": h.timestamp
-        }
+        {"mensaje": h.mensaje, "respuesta": h.respuesta, "timestamp": h.timestamp}
         for h in historial
     ]
 
@@ -97,7 +97,7 @@ def obtener_historial(
 def reporte_rapido(
     datos: ReporteRapidoRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Permite al empleado reportar un incidente directamente desde el chat.
@@ -109,13 +109,13 @@ def reporte_rapido(
         "accidente": TipoIncidenteEnum.accidente,
         "condicion_insegura": TipoIncidenteEnum.condicion_insegura,
         "cuasi_accidente": TipoIncidenteEnum.cuasi_accidente,
-        "casi_accidente": TipoIncidenteEnum.cuasi_accidente  # alias
+        "casi_accidente": TipoIncidenteEnum.cuasi_accidente,  # alias
     }
 
     if datos.tipo not in tipos_map:
         raise HTTPException(
             status_code=400,
-            detail=f"Tipo inválido. Debe ser uno de: {list(tipos_map.keys())}"
+            detail=f"Tipo inválido. Debe ser uno de: {list(tipos_map.keys())}",
         )
 
     # ✅ Fix HU003 — Crear registro real en tabla Incidente
@@ -128,7 +128,7 @@ def reporte_rapido(
         estado=EstadoIncidenteEnum.borrador,
         empresa_id=current_user.empresa_id,
         reportado_por_id=current_user.id,
-        trabajador_afectado_id=current_user.id  # el empleado que reporta
+        trabajador_afectado_id=current_user.id,  # el empleado que reporta
     )
     db.add(nuevo_incidente)
     db.commit()
@@ -144,9 +144,7 @@ def reporte_rapido(
     )
 
     historial_entrada = ChatHistorial(
-        mensaje=mensaje_reporte,
-        respuesta=respuesta_automatica,
-        user_id=current_user.id
+        mensaje=mensaje_reporte, respuesta=respuesta_automatica, user_id=current_user.id
     )
     db.add(historial_entrada)
     db.commit()
@@ -156,5 +154,5 @@ def reporte_rapido(
         "incidente_id": str(nuevo_incidente.id),
         "tipo": datos.tipo,
         "estado": "borrador",
-        "notificado_sst": True
+        "notificado_sst": True,
     }

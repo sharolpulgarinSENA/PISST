@@ -2,9 +2,11 @@ from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from uuid import UUID
 
+
 class AreaCreate(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
+
 
 class AreaResponse(BaseModel):
     id: UUID

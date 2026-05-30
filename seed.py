@@ -7,6 +7,7 @@ from app.models.cargo import Cargo
 from app.models.user import User, RoleEnum
 from app.core.security import get_password_hash
 
+
 def seed():
     db = SessionLocal()
     try:
@@ -17,18 +18,16 @@ def seed():
 
         print("Creando empresa demo...")
         empresa = Empresa(
-            nombre="Empresa Demo SENA SA",
-            nit="900123456-1",
-            sector="Manufactura"
+            nombre="Empresa Demo SENA SA", nit="900123456-1", sector="Manufactura"
         )
         db.add(empresa)
         db.flush()  # obtener el id sin hacer commit todavía
 
         print("Creando áreas...")
         areas = [
-            Area(nombre="Producción",     empresa_id=empresa.id),
+            Area(nombre="Producción", empresa_id=empresa.id),
             Area(nombre="Administración", empresa_id=empresa.id),
-            Area(nombre="Bodega",         empresa_id=empresa.id),
+            Area(nombre="Bodega", empresa_id=empresa.id),
         ]
         for area in areas:
             db.add(area)
@@ -36,11 +35,23 @@ def seed():
 
         print("Creando cargos...")
         cargos = [
-            Cargo(nombre="Operario de Máquina",      area_id=areas[0].id, empresa_id=empresa.id),
-            Cargo(nombre="Técnico de Mantenimiento", area_id=areas[0].id, empresa_id=empresa.id),
-            Cargo(nombre="Coordinador SST",          area_id=areas[1].id, empresa_id=empresa.id),
-            Cargo(nombre="Asistente Administrativo", area_id=areas[1].id, empresa_id=empresa.id),
-            Cargo(nombre="Auxiliar de Bodega",       area_id=areas[2].id, empresa_id=empresa.id),
+            Cargo(
+                nombre="Operario de Máquina", area_id=areas[0].id, empresa_id=empresa.id
+            ),
+            Cargo(
+                nombre="Técnico de Mantenimiento",
+                area_id=areas[0].id,
+                empresa_id=empresa.id,
+            ),
+            Cargo(nombre="Coordinador SST", area_id=areas[1].id, empresa_id=empresa.id),
+            Cargo(
+                nombre="Asistente Administrativo",
+                area_id=areas[1].id,
+                empresa_id=empresa.id,
+            ),
+            Cargo(
+                nombre="Auxiliar de Bodega", area_id=areas[2].id, empresa_id=empresa.id
+            ),
         ]
         for cargo in cargos:
             db.add(cargo)
@@ -58,7 +69,7 @@ def seed():
                 role=RoleEnum.sst,
                 empresa_id=empresa.id,
                 area_id=areas[1].id,
-                cargo_id=cargos[2].id
+                cargo_id=cargos[2].id,
             ),
             User(
                 nombre="María Gerencia Demo",
@@ -67,7 +78,7 @@ def seed():
                 role=RoleEnum.gerencia,
                 empresa_id=empresa.id,
                 area_id=areas[1].id,
-                cargo_id=cargos[3].id
+                cargo_id=cargos[3].id,
             ),
             User(
                 nombre="Pedro Empleado Demo",
@@ -76,7 +87,7 @@ def seed():
                 role=RoleEnum.empleado,
                 empresa_id=empresa.id,
                 area_id=areas[0].id,
-                cargo_id=cargos[0].id
+                cargo_id=cargos[0].id,
             ),
         ]
         for usuario in usuarios:
@@ -95,6 +106,7 @@ def seed():
         print(f"❌ Error en seed: {e}")
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     seed()

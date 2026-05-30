@@ -14,10 +14,22 @@ MODELO = "gemini-2.5-flash"
 
 # Palabras que activan el modo emergencia automáticamente
 PALABRAS_EMERGENCIA = [
-    "me caí", "me cai", "accidente", "herido", "herida",
-    "lesión", "lesion", "me lastimé", "me lastime",
-    "emergencia", "auxilio", "ayuda urgente",
-    "sangre", "no respira", "fractura", "inconsciente"
+    "me caí",
+    "me cai",
+    "accidente",
+    "herido",
+    "herida",
+    "lesión",
+    "lesion",
+    "me lastimé",
+    "me lastime",
+    "emergencia",
+    "auxilio",
+    "ayuda urgente",
+    "sangre",
+    "no respira",
+    "fractura",
+    "inconsciente",
 ]
 
 
@@ -35,7 +47,7 @@ def construir_system_prompt(cargo: str, area: str) -> str:
     Construye el contexto que le damos a Gemini para que sepa
     quién es, a quién le habla y cómo debe responder.
     """
-    return f"""Eres SASBOT, el asistente virtual de Seguridad y Salud en el 
+    return f"""Eres SASBOT, el asistente virtual de Seguridad y Salud en el
 Trabajo (SST) de la plataforma PISST para empresas colombianas.
 
 DATOS DEL EMPLEADO QUE TE CONSULTA:
@@ -73,7 +85,7 @@ def chat_sasbot(
     mensaje: str,
     cargo: str = "empleado general",
     area: str = "área general",
-    historial: list = None
+    historial: list = None,
 ) -> dict:
     """
     Función principal del SASBOT.
@@ -101,19 +113,11 @@ El empleado reporta una emergencia. Debes:
     if historial:
         for msg in historial:
             contents.append(
-                types.Content(
-                    role=msg["role"],
-                    parts=[types.Part(text=msg["content"])]
-                )
+                types.Content(role=msg["role"], parts=[types.Part(text=msg["content"])])
             )
 
     # 4. Agregar el mensaje actual
-    contents.append(
-        types.Content(
-            role="user",
-            parts=[types.Part(text=contenido)]
-        )
-    )
+    contents.append(types.Content(role="user", parts=[types.Part(text=contenido)]))
 
     # 5. Llamar a Gemini
     response = client.models.generate_content(
@@ -122,11 +126,8 @@ El empleado reporta una emergencia. Debes:
         config=types.GenerateContentConfig(
             system_instruction=construir_system_prompt(cargo, area),
             max_output_tokens=1000,
-            temperature=0.7
-        )
+            temperature=0.7,
+        ),
     )
 
-    return {
-        "respuesta": response.text,
-        "modo_emergencia": es_emergencia
-    }
+    return {"respuesta": response.text, "modo_emergencia": es_emergencia}

@@ -13,6 +13,7 @@ if config.config_file_name is not None:
 # ── CAMBIOS AQUÍ ──────────────────────────────────────────────────
 from dotenv import load_dotenv
 import os
+
 load_dotenv()
 
 # Esta línea inyecta la DATABASE_URL del .env en Alembic
@@ -20,15 +21,33 @@ load_dotenv()
 config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
 
 from app.models import (
-    Empresa, Area, Cargo, User, ChatHistorial,
-    Incidente, Lesion, Testigo, Investigacion, AccionCorrectiva,
-    Capacitacion, SesionCapacitacion, Asistencia, Evaluacion, Pregunta, RespuestaEmpleado,
-    Peligro, EvaluacionRiesgo, MedidaControl,
-    Auditoria, Hallazgo, NoConformidad
-    )
+    Empresa,
+    Area,
+    Cargo,
+    User,
+    ChatHistorial,
+    Incidente,
+    Lesion,
+    Testigo,
+    Investigacion,
+    AccionCorrectiva,
+    Capacitacion,
+    SesionCapacitacion,
+    Asistencia,
+    Evaluacion,
+    Pregunta,
+    RespuestaEmpleado,
+    Peligro,
+    EvaluacionRiesgo,
+    MedidaControl,
+    Auditoria,
+    Hallazgo,
+    NoConformidad,
+)
 from app.models.audit_log import AuditLog
 
 from app.core.database import Base
+
 target_metadata = Base.metadata
 
 
@@ -53,9 +72,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()
