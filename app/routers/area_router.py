@@ -1,11 +1,12 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
 
 from app.core.database import get_db
 from app.core.deps import require_role
-from app.models.user import User
 from app.models.area import Area
+from app.models.user import User
 from app.schemas.area_schema import AreaCreate, AreaResponse
 
 router = APIRouter(prefix="/areas", tags=["Áreas"])

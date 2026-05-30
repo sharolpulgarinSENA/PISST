@@ -3,9 +3,10 @@
 # y el rol del usuario antes de ejecutar cualquier función
 
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
+from sqlalchemy.orm import Session
+
 from app.core.database import get_db
 from app.core.security import decode_token
 from app.models.user import User

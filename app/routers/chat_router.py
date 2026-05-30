@@ -1,20 +1,21 @@
 # app/routers/chat_router.py
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Literal, Optional
 from datetime import datetime, timezone
+from typing import Literal, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.user import User
 from app.models.chat_historial import ChatHistorial
 from app.models.incidente import (
-    Incidente,
-    TipoIncidenteEnum,
-    SeveridadEnum,
     EstadoIncidenteEnum,
+    Incidente,
+    SeveridadEnum,
+    TipoIncidenteEnum,
 )
+from app.models.user import User
 from app.services.ai_service import chat_sasbot
 
 router = APIRouter(prefix="/chat", tags=["SASBOT - Chat IA"])

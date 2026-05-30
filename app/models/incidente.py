@@ -1,10 +1,12 @@
 # app/models/incidente.py
-import uuid
 import enum
-from sqlalchemy import Column, String, DateTime, Text, ForeignKey, Enum, Index
+import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+
 from app.core.database import Base
 
 

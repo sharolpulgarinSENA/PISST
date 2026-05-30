@@ -6,8 +6,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base, get_db
 from app.core.security import get_password_hash
-from app.models.user import User, RoleEnum
 from app.models.empresa import Empresa
+from app.models.user import RoleEnum, User
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
 

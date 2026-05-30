@@ -1,21 +1,17 @@
 # app/services/auditoria_service.py
-from sqlalchemy.orm import Session
-from fastapi import HTTPException
-from uuid import UUID
 from datetime import datetime, timezone
+from uuid import UUID
 
-from app.models.auditoria import (
-    Auditoria,
-    Hallazgo,
-    NoConformidad,
-)
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from app.models.auditoria import Auditoria, Hallazgo, NoConformidad
 from app.schemas.auditoria import (
     AuditoriaCreate,
     HallazgoCreate,
     NoConformidadCreate,
     NoConformidadUpdate,
 )
-
 
 # ── Auditorías ────────────────────────────────────────────────────
 

@@ -1,8 +1,9 @@
 # app/routers/auditoria_router.py
+from typing import List
+from uuid import UUID
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from uuid import UUID
-from typing import List
 
 from app.core.database import get_db
 from app.core.deps import require_role
@@ -13,8 +14,8 @@ from app.schemas.auditoria import (
     HallazgoCreate,
     HallazgoResponse,
     NoConformidadCreate,
-    NoConformidadUpdate,
     NoConformidadResponse,
+    NoConformidadUpdate,
 )
 from app.services import auditoria_service
 

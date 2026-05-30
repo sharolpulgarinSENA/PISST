@@ -1,25 +1,25 @@
 # app/services/capacitacion_service.py
-from sqlalchemy.orm import Session
-from fastapi import HTTPException
 from uuid import UUID
 
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
 from app.models.capacitacion import (
-    Capacitacion,
-    SesionCapacitacion,
     Asistencia,
+    Capacitacion,
     Evaluacion,
     Pregunta,
     RespuestaEmpleado,
+    SesionCapacitacion,
 )
 from app.models.user import User
 from app.schemas.capacitacion import (
-    CapacitacionCreate,
-    SesionCreate,
     AsistenciaCreate,
+    CapacitacionCreate,
     EvaluacionCreate,
     ResponderEvaluacionRequest,
+    SesionCreate,
 )
-
 
 # ── Capacitaciones ────────────────────────────────────────────────
 
@@ -313,12 +313,13 @@ def get_cobertura_capacitaciones(db: Session, empresa_id: UUID):
 
 def generar_certificado(db: Session, evaluacion_id: UUID, empleado_id: UUID):
     from io import BytesIO
-    from reportlab.lib.pagesizes import letter
+
     from reportlab.lib import colors
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
     from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer
 
     resultado = (
         db.query(RespuestaEmpleado)

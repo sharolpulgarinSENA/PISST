@@ -1,7 +1,9 @@
 import uuid
-from sqlalchemy import Column, Text, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, ForeignKey, Text
+from sqlalchemy.dialects.postgresql import UUID
+
 from app.core.database import Base
 
 

@@ -1,13 +1,14 @@
 # app/services/metricas_service.py
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from uuid import UUID
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
-from app.models.incidente import Incidente, TipoIncidenteEnum, EstadoIncidenteEnum
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from app.models.accion_correctiva import AccionCorrectiva, EstadoAccionEnum
 from app.models.capacitacion import Capacitacion
-from app.models.user import User, RoleEnum
+from app.models.incidente import EstadoIncidenteEnum, Incidente, TipoIncidenteEnum
+from app.models.user import RoleEnum, User
 
 
 def get_kpis(db: Session, empresa_id: UUID):
@@ -225,19 +226,20 @@ def get_alertas(db: Session, empresa_id: UUID):
 
 def generar_reporte_pdf(db: Session, empresa_id: UUID, periodo: str):
     from io import BytesIO
-    from reportlab.lib.pagesizes import letter
+
     from reportlab.lib import colors
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import inch
     from reportlab.platypus import (
-        SimpleDocTemplate,
-        Paragraph,
-        Spacer,
         HRFlowable,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
         Table,
         TableStyle,
     )
-    from reportlab.lib.enums import TA_CENTER
 
     dashboard = get_dashboard_gerencia(db, empresa_id)
     kpis = dashboard["kpis"]
@@ -374,8 +376,9 @@ def generar_reporte_pdf(db: Session, empresa_id: UUID, periodo: str):
 
 def generar_reporte_excel(db: Session, empresa_id: UUID, periodo: str):
     from io import BytesIO
+
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
     dashboard = get_dashboard_gerencia(db, empresa_id)
     kpis = dashboard["kpis"]

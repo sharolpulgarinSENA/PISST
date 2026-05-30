@@ -1,26 +1,30 @@
 ﻿# main.py
-import os
 import logging
-from fastapi import FastAPI, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from app.core.database import get_db
-from fastapi.middleware.cors import CORSMiddleware
+import os
+
 from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from app.routers import auth_router
-from app.routers import chat_router
-from app.routers import incidente_router
-from app.routers import capacitacion_router
-from app.routers import metricas_router
-from app.routers import riesgo_router
-from app.routers import auditoria_router
-from app.routers import usuario_router
-from app.routers import admin_router
-from app.routers import area_router
-from app.routers import cargo_router
+from slowapi.util import get_remote_address
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.routers import (
+    admin_router,
+    area_router,
+    auditoria_router,
+    auth_router,
+    capacitacion_router,
+    cargo_router,
+    chat_router,
+    incidente_router,
+    metricas_router,
+    riesgo_router,
+    usuario_router,
+)
 
 load_dotenv()
 

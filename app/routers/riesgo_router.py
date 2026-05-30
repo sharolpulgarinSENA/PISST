@@ -1,21 +1,22 @@
 # app/routers/riesgo_router.py
+from typing import List, Optional
+from uuid import UUID
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from uuid import UUID
-from typing import Optional, List
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.schemas.riesgo import (
-    PeligroCreate,
-    PeligroResponse,
-    PeligroDetailResponse,
     EvaluacionRiesgoCreate,
     EvaluacionRiesgoResponse,
     MedidaControlCreate,
-    MedidaControlUpdate,
     MedidaControlResponse,
+    MedidaControlUpdate,
+    PeligroCreate,
+    PeligroDetailResponse,
+    PeligroResponse,
 )
 from app.services import riesgo_service
 

@@ -1,7 +1,8 @@
 # app/routers/metricas_router.py
+from typing import Literal
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from typing import Literal
 
 from app.core.database import get_db
 from app.core.deps import require_role

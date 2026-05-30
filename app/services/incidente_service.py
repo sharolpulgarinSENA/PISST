@@ -1,22 +1,22 @@
 # app/services/incidente_service.py
-from sqlalchemy.orm import Session
-from fastapi import HTTPException
-from uuid import UUID
 from datetime import datetime, timezone
+from uuid import UUID
 
-from app.models.incidente import Incidente, EstadoIncidenteEnum
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from app.models.accion_correctiva import AccionCorrectiva
+from app.models.incidente import EstadoIncidenteEnum, Incidente
+from app.models.investigacion import Investigacion
 from app.models.lesion import Lesion
 from app.models.testigo import Testigo
-from app.models.investigacion import Investigacion
-from app.models.accion_correctiva import AccionCorrectiva
-from app.services.audit_service import registrar_auditoria
 from app.schemas.incidente import (
-    IncidenteCreate,
-    InvestigacionCreate,
     AccionCorrectivaCreate,
     AccionCorrectivaUpdate,
+    IncidenteCreate,
+    InvestigacionCreate,
 )
-
+from app.services.audit_service import registrar_auditoria
 
 # ── Incidentes ────────────────────────────────────────────────────
 

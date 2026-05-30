@@ -3,16 +3,17 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPBearer
 
 _bearer = HTTPBearer()
-from sqlalchemy.orm import Session
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from pydantic import BaseModel, EmailStr
-from typing import Optional
-import httpx
+import logging
 import os
 import secrets
-import logging
 from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+import httpx
+from pydantic import BaseModel, EmailStr
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -25,17 +26,18 @@ def _mask_email(email: str) -> str:
     return f"{user[0]}{'*' * (len(user) - 1)}@{domain}"
 
 
+from jose import JWTError
+
 from app.core.database import get_db
+from app.core.deps import require_role
 from app.core.security import (
-    get_password_hash,
-    verify_password,
     create_access_token,
     decode_token,
+    get_password_hash,
     validar_fortaleza_password,
+    verify_password,
 )
-from jose import JWTError
-from app.core.deps import require_role
-from app.models.user import User, RoleEnum
+from app.models.user import RoleEnum, User
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 

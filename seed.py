@@ -1,11 +1,11 @@
 # seed.py
 # Este script inserta datos demo en Neon para poder probar el sistema
 from app.core.database import SessionLocal
-from app.models.empresa import Empresa
+from app.core.security import get_password_hash
 from app.models.area import Area
 from app.models.cargo import Cargo
-from app.models.user import User, RoleEnum
-from app.core.security import get_password_hash
+from app.models.empresa import Empresa
+from app.models.user import RoleEnum, User
 
 
 def seed():

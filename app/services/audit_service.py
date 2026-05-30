@@ -1,7 +1,9 @@
 # app/services/audit_service.py
-from sqlalchemy.orm import Session
-from uuid import UUID
 from typing import Optional
+from uuid import UUID
+
+from sqlalchemy.orm import Session
+
 from app.models.audit_log import AuditLog
 
 

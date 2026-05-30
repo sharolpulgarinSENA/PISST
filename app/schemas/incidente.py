@@ -1,9 +1,9 @@
 # app/schemas/incidente.py
-from pydantic import BaseModel, ConfigDict
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict
 
 # ── Schemas de Lesión ─────────────────────────────────────────────
 

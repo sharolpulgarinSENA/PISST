@@ -1,20 +1,21 @@
 # app/models/capacitacion.py
 import uuid
+from datetime import datetime, timezone
+
 from sqlalchemy import (
-    Column,
-    String,
-    Text,
-    DateTime,
-    Integer,
     Boolean,
+    Column,
+    DateTime,
     ForeignKey,
+    Integer,
+    String,
     Table,
+    Text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
-from app.core.database import Base
 
+from app.core.database import Base
 
 # ✅ Tabla intermedia capacitacion_areas (muchos a muchos)
 capacitacion_areas = Table(

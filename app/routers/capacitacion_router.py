@@ -1,24 +1,25 @@
 # app/routers/capacitacion_router.py
+from uuid import UUID
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from uuid import UUID
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.schemas.capacitacion import (
+    AsistenciaCreate,
+    AsistenciaResponse,
     CapacitacionCreate,
     CapacitacionResponse,
     CapacitacionUpdate,
-    SesionCreate,
-    SesionResponse,
-    SesionUpdate,
-    AsistenciaCreate,
-    AsistenciaResponse,
     EvaluacionCreate,
     EvaluacionResponse,
     ResponderEvaluacionRequest,
     ResultadoEvaluacionResponse,
+    SesionCreate,
+    SesionResponse,
+    SesionUpdate,
 )
 from app.services import capacitacion_service
 

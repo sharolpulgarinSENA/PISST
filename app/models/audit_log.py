@@ -1,8 +1,10 @@
 # app/models/audit_log.py
 import uuid
-from sqlalchemy import Column, String, DateTime, Text, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import UUID
+
 from app.core.database import Base
 
 
