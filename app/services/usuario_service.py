@@ -44,6 +44,11 @@ def get_user_by_id(db: Session, usuario_id: UUID, empresa_id: UUID):
 
 
 def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
+    if datos.role != RoleEnum.empleado:
+        raise HTTPException(
+            status_code=403, detail="El SST solo puede crear usuarios con rol empleado"
+        )
+
     if db.query(User).filter(User.email == datos.email).first():
         raise HTTPException(status_code=400, detail="El email ya está registrado")
 
