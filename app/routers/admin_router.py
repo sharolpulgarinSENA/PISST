@@ -3,6 +3,7 @@ import logging
 import os
 import secrets
 import string
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -247,4 +248,36 @@ def crear_usuario_gerencia(
         "nombre": nuevo_gerencia.nombre,
         "email": nuevo_gerencia.email,
         "empresa": empresa.nombre,
+    }
+
+
+@router.post("/limpiar-tokens")
+def limpiar_tokens_caducados(
+    db: Session = Depends(get_db),
+    _: str = Depends(verificar_clave_admin),
+):
+    """
+    Limpia refresh tokens y session tokens caducados de todos los usuarios.
+    Requiere header: X-Admin-Key con la clave secreta.
+    """
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    usuarios = (
+        db.query(User)
+        .filter(
+            User.refresh_token_expira.isnot(None), User.refresh_token_expira < ahora
+        )
+        .all()
+    )
+
+    total = len(usuarios)
+    for user in usuarios:
+        user.refresh_token = None
+        user.refresh_token_expira = None
+        user.session_token = None
+
+    db.commit()
+
+    return {
+        "mensaje": f"Limpieza completada. {total} usuario(s) con tokens caducados fueron procesados."
     }
