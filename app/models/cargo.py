@@ -23,3 +23,7 @@ class Cargo(Base):
 
     # Relación inversa: desde un Cargo puedo ver a qué Area pertenece
     area = relationship("Area", back_populates="cargos")
+
+    @property
+    def area_nombre(self):
+        return self.area.nombre if self.area else None
