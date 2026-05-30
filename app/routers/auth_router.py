@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta, timezone
 
 from app.core.database import get_db
-from app.core.security import get_password_hash, verify_password, create_access_token, decode_token
+from app.core.security import get_password_hash, verify_password, create_access_token, decode_token, validar_fortaleza_password
 from jose import JWTError
 from app.core.deps import require_role, get_current_user
 from app.models.user import User, RoleEnum
@@ -56,7 +56,26 @@ class CambiarPasswordRequest(BaseModel):
     nueva_password: str
 
 
-# ── Función auxiliar ─────────────────────────────────────────────
+# ── Funciones auxiliares ─────────────────────────────────────────
+
+def manejar_intento_fallido(user, db: Session) -> None:
+    intentos = int(user.intentos_fallidos or 0) + 1
+    user.intentos_fallidos = intentos
+    if intentos >= MAX_INTENTOS:
+        user.bloqueado_hasta = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=BLOQUEO_MINUTOS)
+        db.commit()
+        raise HTTPException(
+            status_code=429,
+            detail=f"Cuenta bloqueada por {BLOQUEO_MINUTOS} minutos tras "
+                   f"{MAX_INTENTOS} intentos fallidos consecutivos."
+        )
+    restantes = MAX_INTENTOS - intentos
+    db.commit()
+    raise HTTPException(
+        status_code=401,
+        detail=f"Credenciales incorrectas. Te quedan {restantes} intento(s) antes del bloqueo."
+    )
+
 
 async def validar_recaptcha(token: str) -> bool:
     if os.getenv("ENVIRONMENT") == "development":
@@ -118,22 +137,7 @@ async def login(
 
     # Verificar contraseña
     if not verify_password(datos.password, str(user.password_hash)):
-        intentos = int(user.intentos_fallidos or 0) + 1  # type: ignore[arg-type]
-        user.intentos_fallidos = intentos  # type: ignore[assignment]
-        if intentos >= MAX_INTENTOS:
-            user.bloqueado_hasta = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=BLOQUEO_MINUTOS)  # type: ignore[assignment]
-            db.commit()
-            raise HTTPException(
-                status_code=429,
-                detail=f"Cuenta bloqueada por {BLOQUEO_MINUTOS} minutos tras "
-                       f"{MAX_INTENTOS} intentos fallidos consecutivos."
-            )
-        restantes = MAX_INTENTOS - intentos
-        db.commit()
-        raise HTTPException(
-            status_code=401,
-            detail=f"Credenciales incorrectas. Te quedan {restantes} intento(s) antes del bloqueo."
-        )
+        manejar_intento_fallido(user, db)
 
     # Login exitoso — resetear contadores y generar nueva sesión
     user.intentos_fallidos = 0  # type: ignore[assignment]
@@ -174,11 +178,13 @@ def register(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Rol inválido: {datos.role}")
 
+    validar_fortaleza_password(datos.password)
+
     nuevo_usuario = User(
         nombre=datos.nombre,
         email=datos.email,
         password_hash=get_password_hash(datos.password),
-        role=role,  # ✅ Fix enum correcto
+        role=role,
         empresa_id=current_user.empresa_id
     )
     db.add(nuevo_usuario)
@@ -253,6 +259,7 @@ def reset_password(
     if not user.reset_token_expira or user.reset_token_expira < datetime.now(timezone.utc).replace(tzinfo=None):
         raise HTTPException(status_code=400, detail="Token expirado")
 
+    validar_fortaleza_password(datos.new_password)
     user.password_hash = get_password_hash(datos.new_password)
     user.reset_token = None
     user.reset_token_expira = None
@@ -280,6 +287,7 @@ def cambiar_password(
     if not verify_password(datos.password_actual, user.password_hash):
         raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
 
+    validar_fortaleza_password(datos.nueva_password)
     user.password_hash = get_password_hash(datos.nueva_password)
     user.debe_cambiar_password = False
     db.commit()
