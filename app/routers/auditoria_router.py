@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from uuid import UUID
+from typing import List
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/auditorias", tags=["Auditorías Internas"])
 
 # ── Auditorías ────────────────────────────────────────────────────
 
-@router.get("/")
+@router.get("/", response_model=List[AuditoriaResponse])
 def listar_auditorias(
     skip: int = 0,
     limit: int = 50,
@@ -30,7 +31,7 @@ def listar_auditorias(
     )
 
 
-@router.post("/", status_code=201)
+@router.post("/", response_model=AuditoriaResponse, status_code=201)
 def crear_auditoria(
     datos: AuditoriaCreate,
     db: Session = Depends(get_db),
@@ -42,7 +43,7 @@ def crear_auditoria(
     )
 
 
-@router.patch("/{auditoria_id}/estado")
+@router.patch("/{auditoria_id}/estado", response_model=AuditoriaResponse)
 def cambiar_estado_auditoria(
     auditoria_id: UUID,
     estado: str,
@@ -69,7 +70,7 @@ def progreso_auditoria(
 
 # ── Hallazgos ─────────────────────────────────────────────────────
 
-@router.post("/{auditoria_id}/hallazgos", status_code=201)
+@router.post("/{auditoria_id}/hallazgos", response_model=HallazgoResponse, status_code=201)
 def crear_hallazgo(
     auditoria_id: UUID,
     datos: HallazgoCreate,
@@ -82,7 +83,7 @@ def crear_hallazgo(
     )
 
 
-@router.get("/{auditoria_id}/hallazgos")
+@router.get("/{auditoria_id}/hallazgos", response_model=List[HallazgoResponse])
 def listar_hallazgos(
     auditoria_id: UUID,
     db: Session = Depends(get_db),
@@ -96,7 +97,7 @@ def listar_hallazgos(
 
 # ── No Conformidades ──────────────────────────────────────────────
 
-@router.post("/hallazgos/{hallazgo_id}/nc", status_code=201)
+@router.post("/hallazgos/{hallazgo_id}/nc", response_model=NoConformidadResponse, status_code=201)
 def crear_no_conformidad(
     hallazgo_id: UUID,
     datos: NoConformidadCreate,
@@ -109,7 +110,7 @@ def crear_no_conformidad(
     )
 
 
-@router.patch("/nc/{nc_id}")
+@router.patch("/nc/{nc_id}", response_model=NoConformidadResponse)
 def actualizar_no_conformidad(
     nc_id: UUID,
     datos: NoConformidadUpdate,

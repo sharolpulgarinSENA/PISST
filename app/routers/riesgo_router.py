@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from uuid import UUID
-from typing import Optional
+from typing import Optional, List
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/riesgos", tags=["Evaluación de Riesgos"])
 
 # ── Peligros ──────────────────────────────────────────────────────
 
-@router.get("/peligros")
+@router.get("/peligros", response_model=List[PeligroResponse])
 def listar_peligros(
     tipo: Optional[str] = None,
     area_id: Optional[UUID] = None,
@@ -33,7 +33,7 @@ def listar_peligros(
     )
 
 
-@router.post("/peligros", status_code=201)
+@router.post("/peligros", response_model=PeligroResponse, status_code=201)
 def crear_peligro(
     datos: PeligroCreate,
     db: Session = Depends(get_db),
@@ -91,7 +91,7 @@ def obtener_peligro(
 
 # ── Evaluaciones de Riesgo ────────────────────────────────────────
 
-@router.post("/peligros/{peligro_id}/evaluar", status_code=201)
+@router.post("/peligros/{peligro_id}/evaluar", response_model=EvaluacionRiesgoResponse, status_code=201)
 def evaluar_riesgo(
     peligro_id: UUID,
     datos: EvaluacionRiesgoCreate,
@@ -123,7 +123,7 @@ def obtener_matriz_riesgos(
 
 # ── Medidas de Control ────────────────────────────────────────────
 
-@router.post("/peligros/{peligro_id}/controles", status_code=201)
+@router.post("/peligros/{peligro_id}/controles", response_model=MedidaControlResponse, status_code=201)
 def crear_medida_control(
     peligro_id: UUID,
     datos: MedidaControlCreate,
@@ -136,7 +136,7 @@ def crear_medida_control(
     )
 
 
-@router.patch("/controles/{medida_id}")
+@router.patch("/controles/{medida_id}", response_model=MedidaControlResponse)
 def actualizar_medida_control(
     medida_id: UUID,
     datos: MedidaControlUpdate,
