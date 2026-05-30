@@ -1,10 +1,12 @@
 # app/models/accion_correctiva.py
-import uuid
 import enum
-from sqlalchemy import Column, Text, DateTime, ForeignKey, Enum, Index
+import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+
 from app.core.database import Base
 
 

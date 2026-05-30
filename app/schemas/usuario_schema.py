@@ -1,7 +1,9 @@
 # app/schemas/usuario_schema.py
-from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional
 from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, EmailStr
+
 from app.models.user import RoleEnum
 
 

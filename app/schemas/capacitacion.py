@@ -1,9 +1,9 @@
 # app/schemas/capacitacion.py
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
 from datetime import datetime
+from typing import List, Optional
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict
 
 # ── Área (respuesta embebida) ─────────────────────────────────────
 

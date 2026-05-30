@@ -1,7 +1,8 @@
 # app/services/email_service.py
-import httpx
-import os
 import logging
+import os
+
+import httpx
 
 logger = logging.getLogger(__name__)
 from dotenv import load_dotenv

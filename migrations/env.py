@@ -1,18 +1,17 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+import os
+
 # ── CAMBIOS AQUÍ ──────────────────────────────────────────────────
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 
@@ -20,33 +19,32 @@ load_dotenv()
 # Sin esto, Alembic no sabe a qué base de datos conectarse
 config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
 
+from app.core.database import Base
 from app.models import (
-    Empresa,
-    Area,
-    Cargo,
-    User,
-    ChatHistorial,
-    Incidente,
-    Lesion,
-    Testigo,
-    Investigacion,
     AccionCorrectiva,
-    Capacitacion,
-    SesionCapacitacion,
+    Area,
     Asistencia,
+    Auditoria,
+    Capacitacion,
+    Cargo,
+    ChatHistorial,
+    Empresa,
     Evaluacion,
+    EvaluacionRiesgo,
+    Hallazgo,
+    Incidente,
+    Investigacion,
+    Lesion,
+    MedidaControl,
+    NoConformidad,
+    Peligro,
     Pregunta,
     RespuestaEmpleado,
-    Peligro,
-    EvaluacionRiesgo,
-    MedidaControl,
-    Auditoria,
-    Hallazgo,
-    NoConformidad,
+    SesionCapacitacion,
+    Testigo,
+    User,
 )
 from app.models.audit_log import AuditLog
-
-from app.core.database import Base
 
 target_metadata = Base.metadata
 

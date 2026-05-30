@@ -1,9 +1,11 @@
 # app/models/investigacion.py
 import uuid
-from sqlalchemy import Column, String, Text, ForeignKey, DateTime
+from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+
 from app.core.database import Base
 
 

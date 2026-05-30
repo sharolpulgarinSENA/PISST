@@ -1,19 +1,21 @@
 # app/models/riesgo.py
-import uuid
 import enum
+import uuid
+from datetime import datetime, timezone
+
 from sqlalchemy import (
+    Boolean,
     Column,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
     String,
     Text,
-    Integer,
-    ForeignKey,
-    Enum,
-    DateTime,
-    Boolean,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+
 from app.core.database import Base
 
 

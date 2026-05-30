@@ -1,25 +1,25 @@
 # app/routers/incidente_router.py
-from fastapi.responses import Response
-from app.services import furat_service
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from typing import List, Optional
 from uuid import UUID
-from typing import Optional, List
+
+from fastapi import APIRouter, Depends
+from fastapi.responses import Response
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.schemas.incidente import (
-    IncidenteCreate,
-    IncidenteResponse,
-    IncidenteEstadoUpdate,
-    InvestigacionCreate,
-    InvestigacionResponse,
     AccionCorrectivaCreate,
     AccionCorrectivaResponse,
     AccionCorrectivaUpdate,
+    IncidenteCreate,
+    IncidenteEstadoUpdate,
+    IncidenteResponse,
+    InvestigacionCreate,
+    InvestigacionResponse,
 )
-from app.services import incidente_service
+from app.services import furat_service, incidente_service
 
 router = APIRouter(prefix="/incidentes", tags=["Incidentes"])
 

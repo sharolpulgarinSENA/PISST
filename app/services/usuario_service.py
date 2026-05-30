@@ -1,18 +1,19 @@
 # app/services/usuario_service.py
+import logging
 import secrets
 import string
-import logging
 from uuid import UUID
-from sqlalchemy.orm import Session
-from fastapi import HTTPException
 
-from app.models.user import User, RoleEnum
-from app.schemas.usuario_schema import UsuarioCreate, UsuarioUpdate
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
 from app.core.security import get_password_hash
-from app.services.email_service import enviar_correo_bienvenida
 from app.models.area import Area
 from app.models.cargo import Cargo
+from app.models.user import RoleEnum, User
+from app.schemas.usuario_schema import UsuarioCreate, UsuarioUpdate
 from app.services.audit_service import registrar_auditoria
+from app.services.email_service import enviar_correo_bienvenida
 
 logger = logging.getLogger(__name__)
 

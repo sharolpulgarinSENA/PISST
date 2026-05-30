@@ -1,15 +1,16 @@
 # app/services/furat_service.py
-from app.models.empresa import Empresa
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer
-from reportlab.lib.units import cm
-from sqlalchemy.orm import Session
-from uuid import UUID
-from datetime import datetime, timezone
 import io
+from datetime import datetime, timezone
+from uuid import UUID
 
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import cm
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from sqlalchemy.orm import Session
+
+from app.models.empresa import Empresa
 from app.services.incidente_service import get_incidente_by_id
 
 

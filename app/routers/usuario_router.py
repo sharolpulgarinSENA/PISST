@@ -1,17 +1,18 @@
 # app/routers/usuario_router.py
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_role
 from app.models.user import User
-from app.schemas.usuario_schema import UsuarioCreate, UsuarioUpdate, UsuarioResponse
+from app.schemas.usuario_schema import UsuarioCreate, UsuarioResponse, UsuarioUpdate
 from app.services.usuario_service import (
+    create_user,
     get_all_users,
     get_user_by_id,
-    create_user,
     update_user,
 )
 

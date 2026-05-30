@@ -1,7 +1,8 @@
 # tests/test_usuarios.py
-from app.services.usuario_service import get_all_users, get_user_by_id
-from fastapi import HTTPException
 import pytest
+from fastapi import HTTPException
+
+from app.services.usuario_service import get_all_users, get_user_by_id
 
 
 def test_listar_usuarios_vacios(db, empresa):
