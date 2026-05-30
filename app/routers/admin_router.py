@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 import os
 
@@ -40,10 +40,33 @@ class SSTCreate(BaseModel):
     empresa_id: UUID
 
 
+class EmpresaResponse(BaseModel):
+    mensaje: str
+    empresa_id: str
+    nombre: str
+    nit: str
+
+
+class EmpresaListItem(BaseModel):
+    id: str
+    nombre: str
+    nit: str
+    sector: Optional[str]
+    activo: bool
+
+
+class UsuarioAdminResponse(BaseModel):
+    mensaje: str
+    usuario_id: str
+    nombre: str
+    email: str
+    empresa: str
+
+
 # ── Endpoints ─────────────────────────────────────────────────────
 
 
-@router.post("/empresas", status_code=201)
+@router.post("/empresas", response_model=EmpresaResponse, status_code=201)
 def crear_empresa(
     datos: EmpresaCreate,
     db: Session = Depends(get_db),
@@ -69,7 +92,7 @@ def crear_empresa(
     }
 
 
-@router.get("/empresas")
+@router.get("/empresas", response_model=List[EmpresaListItem])
 def listar_empresas(
     db: Session = Depends(get_db), _: str = Depends(verificar_clave_admin)
 ):
@@ -90,7 +113,7 @@ def listar_empresas(
     ]
 
 
-@router.post("/crear-sst", status_code=201)
+@router.post("/crear-sst", response_model=UsuarioAdminResponse, status_code=201)
 def crear_usuario_sst(
     datos: SSTCreate,
     db: Session = Depends(get_db),
@@ -142,7 +165,7 @@ def crear_usuario_sst(
     }
 
 
-@router.post("/crear-gerencia", status_code=201)
+@router.post("/crear-gerencia", response_model=UsuarioAdminResponse, status_code=201)
 def crear_usuario_gerencia(
     datos: SSTCreate,
     db: Session = Depends(get_db),

@@ -1,6 +1,6 @@
 # app/schemas/riesgo.py
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 
@@ -76,3 +76,8 @@ class MedidaControlResponse(BaseModel):
     peligro_id: UUID
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PeligroDetailResponse(PeligroResponse):
+    evaluaciones: List[EvaluacionRiesgoResponse] = []
+    medidas_control: List[MedidaControlResponse] = []
