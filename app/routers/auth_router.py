@@ -16,6 +16,15 @@ from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
+
+def _mask_email(email: str) -> str:
+    parts = email.split("@")
+    if len(parts) != 2:
+        return "****"
+    user, domain = parts
+    return f"{user[0]}{'*' * (len(user) - 1)}@{domain}"
+
+
 from app.core.database import get_db
 from app.core.security import (
     get_password_hash,
@@ -136,19 +145,14 @@ async def login(request: Request, datos: LoginRequest, db: Session = Depends(get
     if bloqueado_hasta is not None and bloqueado_hasta > datetime.now(
         timezone.utc
     ).replace(tzinfo=None):
-        minutos_restantes = (
-            int(
-                (
-                    bloqueado_hasta - datetime.now(timezone.utc).replace(tzinfo=None)
-                ).total_seconds()
-                / 60
-            )
-            + 1
-        )
+        segundos_restantes = (
+            bloqueado_hasta - datetime.now(timezone.utc).replace(tzinfo=None)
+        ).total_seconds()
+        minutos_restantes = int(segundos_restantes / 60) + 1
+        hora_desbloqueo = bloqueado_hasta.strftime("%H:%M")
         raise HTTPException(
             status_code=429,
-            detail=f"Cuenta bloqueada por demasiados intentos fallidos. "
-            f"Intenta de nuevo en {minutos_restantes} minuto(s).",
+            detail=f"Cuenta bloqueada. Intenta de nuevo en {minutos_restantes} minuto(s) (a las {hora_desbloqueo}).",
         )
 
     # Verificar contraseña
@@ -237,7 +241,7 @@ def forgot_password(datos: ForgotPasswordRequest, db: Session = Depends(get_db))
     # ✅ Fix Bug #4 — Siempre retornar mensaje genérico aunque falle el correo
     if not enviado:
         logger.warning(
-            f"Error enviando correo a {user.email} — token generado pero no enviado"
+            f"Error enviando correo a {_mask_email(user.email)} — token generado pero no enviado"
         )
 
     return mensaje_generico
@@ -305,6 +309,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+
 @router.post("/refresh")
 def refresh_token(datos: RefreshRequest, db: Session = Depends(get_db)):
     user = (
@@ -326,3 +334,20 @@ def refresh_token(datos: RefreshRequest, db: Session = Depends(get_db)):
     )
 
     return {"access_token": nuevo_access_token, "token_type": "bearer"}
+
+
+@router.post("/logout")
+def logout(datos: LogoutRequest, db: Session = Depends(get_db)):
+    user = (
+        db.query(User)
+        .filter(User.refresh_token == datos.refresh_token, User.activo == True)
+        .first()
+    )
+
+    if user:
+        user.refresh_token = None
+        user.refresh_token_expira = None
+        user.session_token = None
+        db.commit()
+
+    return {"mensaje": "Sesión cerrada exitosamente"}

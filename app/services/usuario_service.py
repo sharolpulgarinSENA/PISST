@@ -22,6 +22,14 @@ def generar_password_temporal(longitud: int = 10) -> str:
     return "".join(secrets.choice(caracteres) for _ in range(longitud))
 
 
+def _mask_email(email: str) -> str:
+    parts = email.split("@")
+    if len(parts) != 2:
+        return "****"
+    user, domain = parts
+    return f"{user[0]}{'*' * (len(user) - 1)}@{domain}"
+
+
 def get_all_users(db: Session, empresa_id: UUID, skip: int = 0, limit: int = 50):
     return (
         db.query(User)
@@ -119,7 +127,7 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
         password_temporal=password_temporal,
     )
     if not enviado:
-        logger.warning(f"Correo no enviado a {nuevo_usuario.email}")
+        logger.warning(f"Correo no enviado a {_mask_email(str(nuevo_usuario.email))}")
 
     return nuevo_usuario
 
