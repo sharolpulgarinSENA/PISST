@@ -7,6 +7,7 @@ from uuid import UUID
 
 # ── Área (respuesta embebida) ─────────────────────────────────────
 
+
 class AreaSimple(BaseModel):
     id: UUID
     nombre: str
@@ -16,18 +17,23 @@ class AreaSimple(BaseModel):
 
 # ── Capacitación ──────────────────────────────────────────────────
 
+
 class CapacitacionCreate(BaseModel):
     titulo: str
     objetivos: Optional[str] = None
     duracion_horas: Optional[int] = 1
     facilitador_id: Optional[UUID] = None
-    area_ids: Optional[List[UUID]] = []   # ✅ nuevo
+    area_ids: Optional[List[UUID]] = []  # ✅ nuevo
+
 
 class CapacitacionUpdate(BaseModel):
     activo: Optional[bool] = None
-    titulo: Optional[str] = None           # ✅ nuevo
-    objetivos: Optional[str] = None        # ✅ nuevo
-    duracion_horas: Optional[int] = None   # ✅ nuevo         # ✅ nuevo — para suspender/activar
+    titulo: Optional[str] = None  # ✅ nuevo
+    objetivos: Optional[str] = None  # ✅ nuevo
+    duracion_horas: Optional[int] = (
+        None  # ✅ nuevo         # ✅ nuevo — para suspender/activar
+    )
+
 
 class CapacitacionResponse(BaseModel):
     id: UUID
@@ -36,17 +42,19 @@ class CapacitacionResponse(BaseModel):
     duracion_horas: int
     activo: bool
     empresa_id: UUID
-    areas: List[AreaSimple] = []          # ✅ nuevo
+    areas: List[AreaSimple] = []  # ✅ nuevo
 
     model_config = ConfigDict(from_attributes=True)
 
 
 # ── Sesión ────────────────────────────────────────────────────────
 
+
 class SesionCreate(BaseModel):
     fecha: datetime
     lugar: Optional[str] = None
     capacitacion_id: UUID
+
 
 class SesionResponse(BaseModel):
     id: UUID
@@ -57,6 +65,7 @@ class SesionResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class SesionUpdate(BaseModel):
     fecha: Optional[datetime] = None
     lugar: Optional[str] = None
@@ -64,10 +73,12 @@ class SesionUpdate(BaseModel):
 
 # ── Asistencia ────────────────────────────────────────────────────
 
+
 class AsistenciaCreate(BaseModel):
     sesion_id: UUID
     empleado_id: UUID
     estado: Optional[str] = "presente"
+
 
 class AsistenciaResponse(BaseModel):
     id: UUID
@@ -81,6 +92,7 @@ class AsistenciaResponse(BaseModel):
 
 # ── Evaluación ────────────────────────────────────────────────────
 
+
 class PreguntaCreate(BaseModel):
     texto: str
     opcion_a: str
@@ -88,6 +100,7 @@ class PreguntaCreate(BaseModel):
     opcion_c: str
     opcion_d: str
     respuesta_correcta: str
+
 
 class PreguntaResponse(BaseModel):
     id: UUID
@@ -99,11 +112,13 @@ class PreguntaResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class EvaluacionCreate(BaseModel):
     titulo: str
     puntaje_minimo: Optional[int] = 60
     sesion_id: UUID
     preguntas: List[PreguntaCreate]
+
 
 class EvaluacionResponse(BaseModel):
     id: UUID
@@ -117,13 +132,16 @@ class EvaluacionResponse(BaseModel):
 
 # ── Respuesta del Empleado ────────────────────────────────────────
 
+
 class RespuestaCreate(BaseModel):
     pregunta_id: UUID
     respuesta_dada: str
 
+
 class ResponderEvaluacionRequest(BaseModel):
     evaluacion_id: UUID
     respuestas: List[RespuestaCreate]
+
 
 class ResultadoEvaluacionResponse(BaseModel):
     evaluacion_id: UUID

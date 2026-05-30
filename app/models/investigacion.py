@@ -17,18 +17,22 @@ class Investigacion(Base):
 
     # Causas identificadas
     causas_inmediatas = Column(Text)  # técnicas y humanas
-    causas_basicas    = Column(Text)  # gestión, capacitación, procedimientos
+    causas_basicas = Column(Text)  # gestión, capacitación, procedimientos
     factores_contribuyentes = Column(Text)
 
     # Conclusiones
     descripcion_evento = Column(Text)
     lecciones_aprendidas = Column(Text)
 
-    fecha_creacion = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    fecha_creacion = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+    )
 
     # Un incidente tiene una sola investigación
-    incidente_id = Column(UUID(as_uuid=True),
-                          ForeignKey("incidentes.id", ondelete="CASCADE"),
-                          nullable=False)
+    incidente_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("incidentes.id", ondelete="CASCADE"),
+        nullable=False,
+    )
 
     incidente = relationship("Incidente", back_populates="investigacion")

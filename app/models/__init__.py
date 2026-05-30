@@ -9,8 +9,12 @@ from app.models.testigo import Testigo
 from app.models.investigacion import Investigacion
 from app.models.accion_correctiva import AccionCorrectiva
 from app.models.capacitacion import (
-    Capacitacion, SesionCapacitacion,
-    Asistencia, Evaluacion, Pregunta, RespuestaEmpleado
+    Capacitacion,
+    SesionCapacitacion,
+    Asistencia,
+    Evaluacion,
+    Pregunta,
+    RespuestaEmpleado,
 )
 from app.models.riesgo import Peligro, EvaluacionRiesgo, MedidaControl
 from app.models.auditoria import Auditoria, Hallazgo, NoConformidad

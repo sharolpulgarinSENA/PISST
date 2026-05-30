@@ -1,11 +1,12 @@
 # app/schemas/riesgo.py
 from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime
 from uuid import UUID
 
 
 # ── Peligro ───────────────────────────────────────────────────────
+
 
 class PeligroCreate(BaseModel):
     descripcion: str
@@ -13,6 +14,7 @@ class PeligroCreate(BaseModel):
     actividad: Optional[str] = None
     trabajadores_expuestos: Optional[int] = 0
     area_id: Optional[UUID] = None
+
 
 class PeligroResponse(BaseModel):
     id: UUID
@@ -29,10 +31,12 @@ class PeligroResponse(BaseModel):
 
 # ── Evaluación de Riesgo ──────────────────────────────────────────
 
+
 class EvaluacionRiesgoCreate(BaseModel):
     probabilidad: int  # 1 a 5
-    severidad: int     # 1 a 5
+    severidad: int  # 1 a 5
     es_residual: Optional[bool] = False
+
 
 class EvaluacionRiesgoResponse(BaseModel):
     id: UUID
@@ -48,16 +52,19 @@ class EvaluacionRiesgoResponse(BaseModel):
 
 # ── Medida de Control ─────────────────────────────────────────────
 
+
 class MedidaControlCreate(BaseModel):
     descripcion: str
     tipo: str  # eliminacion, sustitucion, ingenieria, administrativo, epp
     fecha_limite: Optional[datetime] = None
     responsable_id: Optional[UUID] = None
 
+
 class MedidaControlUpdate(BaseModel):
     estado: Optional[str] = None
     evidencia: Optional[str] = None
     descripcion: Optional[str] = None
+
 
 class MedidaControlResponse(BaseModel):
     id: UUID

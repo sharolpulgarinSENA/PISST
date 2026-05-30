@@ -25,8 +25,7 @@ from app.routers import cargo_router
 load_dotenv()
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s — %(message)s"
+    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s"
 )
 
 _REQUIRED_ENV = ["DATABASE_URL", "SECRET_KEY", "GEMINI_API_KEY", "RESEND_API_KEY"]
@@ -45,11 +44,13 @@ app = FastAPI(
     openapi_url="/openapi.json" if _dev else None,
 )
 
+
 def _rate_limit_key(request: Request) -> str:
     auth = request.headers.get("authorization", "")
     if auth.startswith("Bearer "):
         return auth[-30:]
     return get_remote_address(request)
+
 
 limiter = Limiter(key_func=_rate_limit_key)
 app.state.limiter = limiter
@@ -57,12 +58,14 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 _prod_origins = [
     "https://pisst-frontend.vercel.app",  # front de pruebas
-    "https://app.pisst.online",           # front oficial Sharon/Santiago
+    "https://app.pisst.online",  # front oficial Sharon/Santiago
 ]
 if os.getenv("FRONTEND_URL"):
     _prod_origins.append(os.getenv("FRONTEND_URL"))
 
-origins = _prod_origins + (["http://localhost:5173", "http://localhost:3000"] if _dev else [])
+origins = _prod_origins + (
+    ["http://localhost:5173", "http://localhost:3000"] if _dev else []
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -84,10 +87,16 @@ app.include_router(admin_router.router)
 app.include_router(area_router.router)
 app.include_router(cargo_router.router)
 
+
 @app.get("/", tags=["Health"])
 def health_check(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
-        return {"status": "ok", "db": "connected", "proyecto": "PISST", "version": "1.0.0"}
+        return {
+            "status": "ok",
+            "db": "connected",
+            "proyecto": "PISST",
+            "version": "1.0.0",
+        }
     except Exception:
         raise HTTPException(status_code=503, detail="Base de datos no disponible")

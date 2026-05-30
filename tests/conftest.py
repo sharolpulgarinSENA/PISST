@@ -41,12 +41,14 @@ def db():
 @pytest.fixture
 def client(db):
     import os
+
     os.environ.setdefault("SECRET_KEY", "test-secret-key-para-tests-unitarios")
     os.environ.setdefault("GEMINI_API_KEY", "fake")
     os.environ.setdefault("RESEND_API_KEY", "fake")
     os.environ.setdefault("DATABASE_URL", SQLALCHEMY_TEST_URL)
 
     from main import app
+
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
@@ -56,6 +58,7 @@ def client(db):
 @pytest.fixture
 def empresa(db):
     import uuid as _uuid
+
     nit = str(_uuid.uuid4())[:12].replace("-", "")
     emp = Empresa(nombre="Empresa Test", nit=nit, sector="Pruebas")
     db.add(emp)
@@ -67,6 +70,7 @@ def empresa(db):
 @pytest.fixture
 def usuario_sst(db, empresa):
     import uuid as _uuid
+
     email = f"sst_{_uuid.uuid4().hex[:8]}@test.com"
     user = User(
         nombre="SST Test",

@@ -5,21 +5,30 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 from app.models.auditoria import (
-    Auditoria, Hallazgo, NoConformidad,
-    EstadoAuditoriaEnum, EstadoNCEnum
+    Auditoria,
+    Hallazgo,
+    NoConformidad,
 )
 from app.schemas.auditoria import (
-    AuditoriaCreate, HallazgoCreate,
-    NoConformidadCreate, NoConformidadUpdate
+    AuditoriaCreate,
+    HallazgoCreate,
+    NoConformidadCreate,
+    NoConformidadUpdate,
 )
 
 
 # ── Auditorías ────────────────────────────────────────────────────
 
+
 def get_all_auditorias(db: Session, empresa_id: UUID, skip: int = 0, limit: int = 50):
-    return db.query(Auditoria)\
-        .filter(Auditoria.empresa_id == empresa_id)\
-        .order_by(Auditoria.fecha_programada.desc()).offset(skip).limit(limit).all()
+    return (
+        db.query(Auditoria)
+        .filter(Auditoria.empresa_id == empresa_id)
+        .order_by(Auditoria.fecha_programada.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 def create_auditoria(db: Session, datos: AuditoriaCreate, empresa_id: UUID):
@@ -28,7 +37,7 @@ def create_auditoria(db: Session, datos: AuditoriaCreate, empresa_id: UUID):
         fecha_programada=datos.fecha_programada,
         area_id=datos.area_id,
         auditor_id=datos.auditor_id,
-        empresa_id=empresa_id
+        empresa_id=empresa_id,
     )
     db.add(auditoria)
     db.commit()
@@ -37,17 +46,19 @@ def create_auditoria(db: Session, datos: AuditoriaCreate, empresa_id: UUID):
 
 
 def get_auditoria_by_id(db: Session, auditoria_id: UUID, empresa_id: UUID):
-    auditoria = db.query(Auditoria).filter(
-        Auditoria.id == auditoria_id,
-        Auditoria.empresa_id == empresa_id
-    ).first()
+    auditoria = (
+        db.query(Auditoria)
+        .filter(Auditoria.id == auditoria_id, Auditoria.empresa_id == empresa_id)
+        .first()
+    )
     if not auditoria:
         raise HTTPException(status_code=404, detail="Auditoría no encontrada")
     return auditoria
 
 
-def cambiar_estado_auditoria(db: Session, auditoria_id: UUID,
-                              empresa_id: UUID, nuevo_estado: str):
+def cambiar_estado_auditoria(
+    db: Session, auditoria_id: UUID, empresa_id: UUID, nuevo_estado: str
+):
     auditoria = get_auditoria_by_id(db, auditoria_id, empresa_id)
     auditoria.estado = nuevo_estado
     if nuevo_estado == "en_ejecucion":
@@ -59,8 +70,10 @@ def cambiar_estado_auditoria(db: Session, auditoria_id: UUID,
 
 # ── Hallazgos ─────────────────────────────────────────────────────
 
-def create_hallazgo(db: Session, auditoria_id: UUID,
-                    empresa_id: UUID, datos: HallazgoCreate):
+
+def create_hallazgo(
+    db: Session, auditoria_id: UUID, empresa_id: UUID, datos: HallazgoCreate
+):
     get_auditoria_by_id(db, auditoria_id, empresa_id)
 
     hallazgo = Hallazgo(
@@ -68,7 +81,7 @@ def create_hallazgo(db: Session, auditoria_id: UUID,
         clasificacion=datos.clasificacion,
         evidencia=datos.evidencia,
         recomendacion=datos.recomendacion,
-        auditoria_id=auditoria_id
+        auditoria_id=auditoria_id,
     )
     db.add(hallazgo)
     db.commit()
@@ -78,16 +91,14 @@ def create_hallazgo(db: Session, auditoria_id: UUID,
 
 def get_hallazgos_by_auditoria(db: Session, auditoria_id: UUID, empresa_id: UUID):
     get_auditoria_by_id(db, auditoria_id, empresa_id)
-    return db.query(Hallazgo)\
-        .filter(Hallazgo.auditoria_id == auditoria_id).all()
+    return db.query(Hallazgo).filter(Hallazgo.auditoria_id == auditoria_id).all()
 
 
 def get_progreso_auditoria(db: Session, auditoria_id: UUID, empresa_id: UUID):
     """Calcula el % de no conformidades cerradas."""
     get_auditoria_by_id(db, auditoria_id, empresa_id)
 
-    hallazgos = db.query(Hallazgo)\
-        .filter(Hallazgo.auditoria_id == auditoria_id).all()
+    hallazgos = db.query(Hallazgo).filter(Hallazgo.auditoria_id == auditoria_id).all()
 
     total_nc = 0
     nc_cerradas = 0
@@ -101,14 +112,16 @@ def get_progreso_auditoria(db: Session, auditoria_id: UUID, empresa_id: UUID):
     return {
         "total_no_conformidades": total_nc,
         "cerradas": nc_cerradas,
-        "porcentaje_cierre": round((nc_cerradas / total_nc) * 100) if total_nc > 0 else 100
+        "porcentaje_cierre": (
+            round((nc_cerradas / total_nc) * 100) if total_nc > 0 else 100
+        ),
     }
 
 
 # ── No Conformidades ──────────────────────────────────────────────
 
-def create_no_conformidad(db: Session, hallazgo_id: UUID,
-                           datos: NoConformidadCreate):
+
+def create_no_conformidad(db: Session, hallazgo_id: UUID, datos: NoConformidadCreate):
     hallazgo = db.query(Hallazgo).filter(Hallazgo.id == hallazgo_id).first()
     if not hallazgo:
         raise HTTPException(status_code=404, detail="Hallazgo no encontrado")
@@ -117,7 +130,7 @@ def create_no_conformidad(db: Session, hallazgo_id: UUID,
         descripcion=datos.descripcion,
         fecha_limite=datos.fecha_limite,
         responsable_id=datos.responsable_id,
-        hallazgo_id=hallazgo_id
+        hallazgo_id=hallazgo_id,
     )
     db.add(nc)
     db.commit()
@@ -134,7 +147,7 @@ def update_no_conformidad(db: Session, nc_id: UUID, datos: NoConformidadUpdate):
     if datos.estado == "cerrada" and not datos.evidencia_cierre:
         raise HTTPException(
             status_code=400,
-            detail="No se puede cerrar una NC sin evidencia de la acción tomada"
+            detail="No se puede cerrar una NC sin evidencia de la acción tomada",
         )
 
     for campo, valor in datos.model_dump(exclude_unset=True).items():

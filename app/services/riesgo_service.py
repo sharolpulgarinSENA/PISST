@@ -2,15 +2,13 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from uuid import UUID
-from datetime import datetime
 
-from app.models.riesgo import (
-    Peligro, EvaluacionRiesgo, MedidaControl,
-    NivelRiesgoEnum
-)
+from app.models.riesgo import Peligro, EvaluacionRiesgo, MedidaControl, NivelRiesgoEnum
 from app.schemas.riesgo import (
-    PeligroCreate, EvaluacionRiesgoCreate,
-    MedidaControlCreate, MedidaControlUpdate
+    PeligroCreate,
+    EvaluacionRiesgoCreate,
+    MedidaControlCreate,
+    MedidaControlUpdate,
 )
 
 
@@ -24,20 +22,28 @@ def calcular_nivel_riesgo(probabilidad: int, severidad: int) -> NivelRiesgoEnum:
     17-25 → Crítico
     """
     nivel = probabilidad * severidad
-    if nivel <= 4:    return NivelRiesgoEnum.bajo
-    if nivel <= 9:    return NivelRiesgoEnum.medio
-    if nivel <= 16:   return NivelRiesgoEnum.alto
+    if nivel <= 4:
+        return NivelRiesgoEnum.bajo
+    if nivel <= 9:
+        return NivelRiesgoEnum.medio
+    if nivel <= 16:
+        return NivelRiesgoEnum.alto
     return NivelRiesgoEnum.critico
 
 
 # ── Peligros ──────────────────────────────────────────────────────
 
-def get_all_peligros(db: Session, empresa_id: UUID,
-                     tipo: str = None, area_id: UUID = None,
-                     skip: int = 0, limit: int = 50):
+
+def get_all_peligros(
+    db: Session,
+    empresa_id: UUID,
+    tipo: str = None,
+    area_id: UUID = None,
+    skip: int = 0,
+    limit: int = 50,
+):
     query = db.query(Peligro).filter(
-        Peligro.empresa_id == empresa_id,
-        Peligro.activo == True
+        Peligro.empresa_id == empresa_id, Peligro.activo == True
     )
     if tipo:
         query = query.filter(Peligro.tipo == tipo)
@@ -53,7 +59,7 @@ def create_peligro(db: Session, datos: PeligroCreate, empresa_id: UUID):
         actividad=datos.actividad,
         trabajadores_expuestos=datos.trabajadores_expuestos,
         area_id=datos.area_id,
-        empresa_id=empresa_id
+        empresa_id=empresa_id,
     )
     db.add(peligro)
     db.commit()
@@ -62,10 +68,11 @@ def create_peligro(db: Session, datos: PeligroCreate, empresa_id: UUID):
 
 
 def get_peligro_by_id(db: Session, peligro_id: UUID, empresa_id: UUID):
-    peligro = db.query(Peligro).filter(
-        Peligro.id == peligro_id,
-        Peligro.empresa_id == empresa_id
-    ).first()
+    peligro = (
+        db.query(Peligro)
+        .filter(Peligro.id == peligro_id, Peligro.empresa_id == empresa_id)
+        .first()
+    )
     if not peligro:
         raise HTTPException(status_code=404, detail="Peligro no encontrado")
     return peligro
@@ -73,8 +80,10 @@ def get_peligro_by_id(db: Session, peligro_id: UUID, empresa_id: UUID):
 
 # ── Evaluaciones de Riesgo ────────────────────────────────────────
 
-def create_evaluacion_riesgo(db: Session, peligro_id: UUID,
-                              empresa_id: UUID, datos: EvaluacionRiesgoCreate):
+
+def create_evaluacion_riesgo(
+    db: Session, peligro_id: UUID, empresa_id: UUID, datos: EvaluacionRiesgoCreate
+):
     # Verificar que el peligro existe
     get_peligro_by_id(db, peligro_id, empresa_id)
 
@@ -86,7 +95,7 @@ def create_evaluacion_riesgo(db: Session, peligro_id: UUID,
         severidad=datos.severidad,
         nivel_riesgo=nivel,
         es_residual=datos.es_residual,
-        peligro_id=peligro_id
+        peligro_id=peligro_id,
     )
     db.add(evaluacion)
     db.commit()
@@ -108,19 +117,19 @@ def get_matriz_riesgos(db: Session, empresa_id: UUID):
             continue
         # Tomar la última evaluación
         ultima_eval = sorted(
-            peligro.evaluaciones,
-            key=lambda e: e.fecha_evaluacion,
-            reverse=True
+            peligro.evaluaciones, key=lambda e: e.fecha_evaluacion, reverse=True
         )[0]
         nivel = ultima_eval.nivel_riesgo.value
-        matriz[nivel].append({
-            "peligro_id": str(peligro.id),
-            "descripcion": peligro.descripcion,
-            "tipo": peligro.tipo.value,
-            "probabilidad": ultima_eval.probabilidad,
-            "severidad": ultima_eval.severidad,
-            "nivel_riesgo": nivel
-        })
+        matriz[nivel].append(
+            {
+                "peligro_id": str(peligro.id),
+                "descripcion": peligro.descripcion,
+                "tipo": peligro.tipo.value,
+                "probabilidad": ultima_eval.probabilidad,
+                "severidad": ultima_eval.severidad,
+                "nivel_riesgo": nivel,
+            }
+        )
 
     return {
         "total_peligros": len(peligros),
@@ -128,14 +137,16 @@ def get_matriz_riesgos(db: Session, empresa_id: UUID):
         "altos": len(matriz["alto"]),
         "medios": len(matriz["medio"]),
         "bajos": len(matriz["bajo"]),
-        "matriz": matriz
+        "matriz": matriz,
     }
 
 
 # ── Medidas de Control ────────────────────────────────────────────
 
-def create_medida_control(db: Session, peligro_id: UUID,
-                           empresa_id: UUID, datos: MedidaControlCreate):
+
+def create_medida_control(
+    db: Session, peligro_id: UUID, empresa_id: UUID, datos: MedidaControlCreate
+):
     get_peligro_by_id(db, peligro_id, empresa_id)
 
     medida = MedidaControl(
@@ -143,7 +154,7 @@ def create_medida_control(db: Session, peligro_id: UUID,
         tipo=datos.tipo,
         fecha_limite=datos.fecha_limite,
         responsable_id=datos.responsable_id,
-        peligro_id=peligro_id
+        peligro_id=peligro_id,
     )
     db.add(medida)
     db.commit()
@@ -152,9 +163,7 @@ def create_medida_control(db: Session, peligro_id: UUID,
 
 
 def update_medida_control(db: Session, medida_id: UUID, datos: MedidaControlUpdate):
-    medida = db.query(MedidaControl).filter(
-        MedidaControl.id == medida_id
-    ).first()
+    medida = db.query(MedidaControl).filter(MedidaControl.id == medida_id).first()
     if not medida:
         raise HTTPException(status_code=404, detail="Medida de control no encontrada")
 
@@ -162,7 +171,7 @@ def update_medida_control(db: Session, medida_id: UUID, datos: MedidaControlUpda
     if datos.estado == "completada" and not datos.evidencia:
         raise HTTPException(
             status_code=400,
-            detail="No se puede completar una medida sin evidencia de implementación"
+            detail="No se puede completar una medida sin evidencia de implementación",
         )
 
     for campo, valor in datos.model_dump(exclude_unset=True).items():

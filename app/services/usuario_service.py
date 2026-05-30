@@ -19,21 +19,25 @@ logger = logging.getLogger(__name__)
 
 def generar_password_temporal(longitud: int = 10) -> str:
     caracteres = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(caracteres) for _ in range(longitud))
+    return "".join(secrets.choice(caracteres) for _ in range(longitud))
 
 
 def get_all_users(db: Session, empresa_id: UUID, skip: int = 0, limit: int = 50):
-    return db.query(User).filter(
-        User.empresa_id == empresa_id,
-        User.activo == True
-    ).offset(skip).limit(limit).all()
+    return (
+        db.query(User)
+        .filter(User.empresa_id == empresa_id, User.activo == True)
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 def get_user_by_id(db: Session, usuario_id: UUID, empresa_id: UUID):
-    user = db.query(User).filter(
-        User.id == usuario_id,
-        User.empresa_id == empresa_id
-    ).first()
+    user = (
+        db.query(User)
+        .filter(User.id == usuario_id, User.empresa_id == empresa_id)
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return user
@@ -46,30 +50,36 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
     # 1️⃣ Resolver area_nombre → area_id
     area_id = None
     if datos.area_nombre:
-        area = db.query(Area).filter(
-            Area.nombre == datos.area_nombre,
-            Area.empresa_id == empresa_id,
-            Area.activo == True
-        ).first()
+        area = (
+            db.query(Area)
+            .filter(
+                Area.nombre == datos.area_nombre,
+                Area.empresa_id == empresa_id,
+                Area.activo == True,
+            )
+            .first()
+        )
         if not area:
             raise HTTPException(
-                status_code=404,
-                detail=f"Área '{datos.area_nombre}' no encontrada"
+                status_code=404, detail=f"Área '{datos.area_nombre}' no encontrada"
             )
         area_id = area.id
 
     # 2️⃣ Resolver cargo_nombre → cargo_id
     cargo_id = None
     if datos.cargo_nombre:
-        cargo = db.query(Cargo).filter(
-            Cargo.nombre == datos.cargo_nombre,
-            Cargo.empresa_id == empresa_id,
-            Cargo.activo == True
-        ).first()
+        cargo = (
+            db.query(Cargo)
+            .filter(
+                Cargo.nombre == datos.cargo_nombre,
+                Cargo.empresa_id == empresa_id,
+                Cargo.activo == True,
+            )
+            .first()
+        )
         if not cargo:
             raise HTTPException(
-                status_code=404,
-                detail=f"Cargo '{datos.cargo_nombre}' no encontrado"
+                status_code=404, detail=f"Cargo '{datos.cargo_nombre}' no encontrado"
             )
         cargo_id = cargo.id
 
@@ -85,19 +95,23 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
         area_id=area_id,
         cargo_id=cargo_id,
         activo=True,
-        debe_cambiar_password=True
+        debe_cambiar_password=True,
     )
     db.add(nuevo_usuario)
-    registrar_auditoria(db, accion="crear_usuario", entidad="users",
-                        entidad_id=str(empresa_id),
-                        detalle=f"Usuario {datos.email} creado con rol {datos.role}")
+    registrar_auditoria(
+        db,
+        accion="crear_usuario",
+        entidad="users",
+        entidad_id=str(empresa_id),
+        detalle=f"Usuario {datos.email} creado con rol {datos.role}",
+    )
     db.commit()
     db.refresh(nuevo_usuario)
 
     enviado = enviar_correo_bienvenida(
         email_destino=str(nuevo_usuario.email),
         nombre=str(nuevo_usuario.nombre),
-        password_temporal=password_temporal
+        password_temporal=password_temporal,
     )
     if not enviado:
         logger.warning(f"Correo no enviado a {nuevo_usuario.email}")
@@ -105,7 +119,9 @@ def create_user(db: Session, datos: UsuarioCreate, empresa_id: UUID) -> User:
     return nuevo_usuario
 
 
-def update_user(db: Session, usuario_id: UUID, datos: UsuarioUpdate, empresa_id: UUID) -> User:
+def update_user(
+    db: Session, usuario_id: UUID, datos: UsuarioUpdate, empresa_id: UUID
+) -> User:
     user = get_user_by_id(db, usuario_id, empresa_id)
 
     if datos.nombre is not None:

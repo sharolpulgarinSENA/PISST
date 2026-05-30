@@ -16,7 +16,7 @@ security = HTTPBearer()
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> User:
     """
     Extrae el token JWT del header de la petición,
@@ -38,25 +38,19 @@ def get_current_user(
     except JWTError:
         raise HTTPException(status_code=401, detail="Token inválido o expirado")
 
-    user = db.query(User).filter(
-        User.id == user_id,
-        User.activo == True
-    ).first()
+    user = db.query(User).filter(User.id == user_id, User.activo == True).first()
 
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
 
     if user.debe_cambiar_password:
-        raise HTTPException(
-            status_code=403,
-            detail="debe_cambiar_password"
-        )
+        raise HTTPException(status_code=403, detail="debe_cambiar_password")
 
     # Verificar sesión única: si el token no coincide con la sesión activa en BD
     if session_id is not None and str(user.session_token) != session_id:
         raise HTTPException(
             status_code=401,
-            detail="Sesión expirada. Iniciaste sesión desde otro dispositivo."
+            detail="Sesión expirada. Iniciaste sesión desde otro dispositivo.",
         )
 
     return user
@@ -71,13 +65,12 @@ def require_role(*roles: str):
 
     Si el rol no coincide → retorna error 403 Forbidden
     """
-    def role_checker(
-        current_user: User = Depends(get_current_user)
-    ) -> User:
+
+    def role_checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role.value not in roles:
             raise HTTPException(
-                status_code=403,
-                detail=f"Acceso denegado. Roles permitidos: {roles}"
+                status_code=403, detail=f"Acceso denegado. Roles permitidos: {roles}"
             )
         return current_user
+
     return role_checker

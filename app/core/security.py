@@ -1,6 +1,6 @@
 # app/core/security.py
 from datetime import datetime, timedelta, timezone
-from jose import JWTError, jwt
+from jose import jwt
 import warnings
 import re
 from passlib.context import CryptContext
@@ -36,7 +36,7 @@ def validar_fortaleza_password(password: str) -> None:
     if errores:
         raise HTTPException(
             status_code=400,
-            detail=f"Contraseña débil. Requisitos: {', '.join(errores)}"
+            detail=f"Contraseña débil. Requisitos: {', '.join(errores)}",
         )
 
 
@@ -65,7 +65,9 @@ def create_access_token(data: dict) -> str:
     Se envía al frontend cuando el usuario hace login exitoso.
     """
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
+        minutes=EXPIRE_MINUTES
+    )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 

@@ -7,10 +7,12 @@ from uuid import UUID
 
 # ── Schemas de Lesión ─────────────────────────────────────────────
 
+
 class LesionCreate(BaseModel):
     tipo_lesion: Optional[str] = None
     parte_afectada: Optional[str] = None
     incapacidad_dias: Optional[int] = 0
+
 
 class LesionResponse(BaseModel):
     id: UUID
@@ -23,9 +25,11 @@ class LesionResponse(BaseModel):
 
 # ── Schemas de Testigo ────────────────────────────────────────────
 
+
 class TestigoCreate(BaseModel):
     nombre: str
     relato: Optional[str] = None
+
 
 class TestigoResponse(BaseModel):
     id: UUID
@@ -37,9 +41,10 @@ class TestigoResponse(BaseModel):
 
 # ── Schemas de Incidente ──────────────────────────────────────────
 
+
 class IncidenteCreate(BaseModel):
-    tipo: str        # accidente, incidente, cuasi_accidente, condicion_insegura
-    severidad: str   # sin_lesion, leve, moderada, grave, mortal
+    tipo: str  # accidente, incidente, cuasi_accidente, condicion_insegura
+    severidad: str  # sin_lesion, leve, moderada, grave, mortal
     fecha: datetime
     lugar: str
     descripcion: str
@@ -47,13 +52,16 @@ class IncidenteCreate(BaseModel):
     lesion: Optional[LesionCreate] = None
     testigos: Optional[list[TestigoCreate]] = []
 
+
 class IncidenteUpdate(BaseModel):
     lugar: Optional[str] = None
     descripcion: Optional[str] = None
     severidad: Optional[str] = None
 
+
 class IncidenteEstadoUpdate(BaseModel):
     estado: str  # borrador, en_revision, abierto, en_investigacion, cerrado
+
 
 class IncidenteResponse(BaseModel):
     id: UUID
@@ -75,6 +83,7 @@ class IncidenteResponse(BaseModel):
 
 # ── Schemas de Investigación ──────────────────────────────────────
 
+
 class InvestigacionCreate(BaseModel):
     metodo_analisis: Optional[str] = "5_por_que"
     causas_inmediatas: Optional[str] = None
@@ -82,6 +91,7 @@ class InvestigacionCreate(BaseModel):
     factores_contribuyentes: Optional[str] = None
     descripcion_evento: Optional[str] = None
     lecciones_aprendidas: Optional[str] = None
+
 
 class InvestigacionResponse(BaseModel):
     id: UUID
@@ -98,11 +108,13 @@ class InvestigacionResponse(BaseModel):
 
 # ── Schemas de Acción Correctiva ──────────────────────────────────
 
+
 class AccionCorrectivaCreate(BaseModel):
     descripcion: str
     prioridad: Optional[str] = "media"
     fecha_limite: datetime
     responsable_id: UUID
+
 
 class AccionCorrectivaUpdate(BaseModel):
     descripcion: Optional[str] = None
@@ -110,6 +122,7 @@ class AccionCorrectivaUpdate(BaseModel):
     estado: Optional[str] = None
     evidencia: Optional[str] = None
     fecha_limite: Optional[datetime] = None
+
 
 class AccionCorrectivaResponse(BaseModel):
     id: UUID
