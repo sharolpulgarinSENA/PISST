@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime, timezone
 
 from app.core.database import get_db
@@ -28,7 +28,9 @@ class MensajeRequest(BaseModel):
 
 
 class ReporteRapidoRequest(BaseModel):
-    tipo: str  # "accidente", "condicion_insegura", "cuasi_accidente"
+    tipo: Literal[
+        "accidente", "condicion_insegura", "cuasi_accidente", "casi_accidente"
+    ]
     descripcion: str
     lugar: Optional[str] = "No especificado"
 
