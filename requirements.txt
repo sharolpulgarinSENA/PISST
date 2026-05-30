@@ -39,7 +39,7 @@ packaging==26.2
 passlib==1.7.4
 pillow==12.2.0
 proto-plus==1.28.0
-protobuf==5.29.6
+protobuf==7.35.0
 psycopg2-binary==2.9.12
 pyasn1==0.6.3
 pyasn1_modules==0.4.2
