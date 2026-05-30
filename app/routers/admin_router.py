@@ -131,6 +131,19 @@ def crear_usuario_sst(
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
 
+    if (
+        db.query(User)
+        .filter(
+            User.empresa_id == datos.empresa_id,
+            User.role == RoleEnum.sst,
+            User.activo == True,
+        )
+        .first()
+    ):
+        raise HTTPException(
+            status_code=400, detail="Esta empresa ya tiene un usuario SST activo"
+        )
+
     # Generar contraseña temporal
     caracteres = string.ascii_letters + string.digits
     password_temporal = "".join(secrets.choice(caracteres) for _ in range(10))
@@ -181,6 +194,19 @@ def crear_usuario_gerencia(
     empresa = db.query(Empresa).filter(Empresa.id == datos.empresa_id).first()
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+    if (
+        db.query(User)
+        .filter(
+            User.empresa_id == datos.empresa_id,
+            User.role == RoleEnum.gerencia,
+            User.activo == True,
+        )
+        .first()
+    ):
+        raise HTTPException(
+            status_code=400, detail="Esta empresa ya tiene un usuario Gerencia activo"
+        )
 
     caracteres = string.ascii_letters + string.digits
     password_temporal = "".join(secrets.choice(caracteres) for _ in range(10))
