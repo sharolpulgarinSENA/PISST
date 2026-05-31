@@ -4,6 +4,7 @@ import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from uuid import UUID
 
 import httpx
 from fastapi import HTTPException
@@ -198,7 +199,7 @@ def cambiar_password(
     nueva_password: str,
     db: Session,
 ) -> dict:
-    user = db.query(User).filter(User.id == user_id, User.activo == True).first()
+    user = db.query(User).filter(User.id == UUID(user_id), User.activo == True).first()
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
 
