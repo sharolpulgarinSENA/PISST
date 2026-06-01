@@ -31,14 +31,17 @@ def _mask_email(email: str) -> str:
     return f"{user[0]}{'*' * (len(user) - 1)}@{domain}"
 
 
-def get_all_users(db: Session, empresa_id: UUID, skip: int = 0, limit: int = 50):
-    return (
-        db.query(User)
-        .filter(User.empresa_id == empresa_id, User.activo == True)
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+def get_all_users(
+    db: Session,
+    empresa_id: UUID,
+    skip: int = 0,
+    limit: int = 50,
+    activo: bool | None = None,
+):
+    query = db.query(User).filter(User.empresa_id == empresa_id)
+    if activo is not None:
+        query = query.filter(User.activo == activo)
+    return query.offset(skip).limit(limit).all()
 
 
 def get_user_by_id(db: Session, usuario_id: UUID, empresa_id: UUID):

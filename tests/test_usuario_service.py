@@ -68,6 +68,28 @@ def test_get_all_users_con_datos(db, empresa):
     assert len(resultado) >= 1
 
 
+def test_get_all_users_filtro_activos(db, empresa):
+    empleado = make_empleado(db, empresa)
+    empleado.activo = False
+    db.commit()
+    activos = usuario_service.get_all_users(db, empresa.id, activo=True)
+    inactivos = usuario_service.get_all_users(db, empresa.id, activo=False)
+    assert all(u.activo for u in activos)
+    assert all(not u.activo for u in inactivos)
+
+
+def test_get_all_users_sin_filtro_devuelve_todos(db, empresa):
+    empleado = make_empleado(db, empresa)
+    empleado.activo = False
+    db.commit()
+    make_empleado(db, empresa)
+    todos = usuario_service.get_all_users(db, empresa.id)
+    activos = [u for u in todos if u.activo]
+    inactivos = [u for u in todos if not u.activo]
+    assert len(activos) >= 1
+    assert len(inactivos) >= 1
+
+
 # ── get_user_by_id ──────────────────────────────────────────────────
 
 
@@ -210,3 +232,30 @@ def test_update_user_area_y_cargo(db, empresa):
     )
     assert actualizado.area_id == area.id
     assert actualizado.cargo_id == cargo.id
+
+
+# ── area_nombre / cargo_nombre ──────────────────────────────────────
+
+
+def test_usuario_sin_area_cargo_nombres_son_none(db, empresa):
+    empleado = make_empleado(db, empresa)
+    assert empleado.area_nombre is None
+    assert empleado.cargo_nombre is None
+
+
+def test_usuario_con_area_y_cargo_devuelve_nombres(db, empresa):
+    area = make_area(db, empresa, nombre="Planta")
+    cargo = make_cargo(db, empresa, area, nombre="Mecánico")
+    datos = UsuarioCreate(
+        nombre="Emp Nombres",
+        email=f"nm_{secrets.token_hex(4)}@test.com",
+        role=RoleEnum.empleado,
+        area_nombre=area.nombre,
+        cargo_nombre=cargo.nombre,
+    )
+    with patch(
+        "app.services.usuario_service.enviar_correo_bienvenida", return_value=True
+    ):
+        empleado = usuario_service.create_user(db, datos, empresa.id)
+    assert empleado.area_nombre == "Planta"
+    assert empleado.cargo_nombre == "Mecánico"

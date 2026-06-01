@@ -10,9 +10,22 @@ def test_listar_usuarios_vacios(db, empresa):
     assert isinstance(usuarios, list)
 
 
-def test_listar_usuarios_solo_activos(db, empresa, usuario_sst):
+def test_listar_usuarios_todos_por_defecto(db, empresa, usuario_sst):
     usuarios = get_all_users(db, empresa.id)
+    assert isinstance(usuarios, list)
+    assert len(usuarios) >= 1
+
+
+def test_listar_usuarios_filtro_activos(db, empresa, usuario_sst):
+    usuarios = get_all_users(db, empresa.id, activo=True)
     assert all(u.activo for u in usuarios)
+
+
+def test_listar_usuarios_filtro_inactivos(db, empresa, usuario_sst):
+    usuario_sst.activo = False
+    db.commit()
+    usuarios = get_all_users(db, empresa.id, activo=False)
+    assert all(not u.activo for u in usuarios)
 
 
 def test_get_user_by_id_existente(db, empresa, usuario_sst):
