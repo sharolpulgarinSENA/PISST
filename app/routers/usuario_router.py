@@ -1,5 +1,5 @@
 # app/routers/usuario_router.py
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -23,10 +23,11 @@ router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 def listar_usuarios(
     skip: int = 0,
     limit: int = 50,
+    activo: Optional[bool] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst")),
 ):
-    return get_all_users(db, current_user.empresa_id, skip, limit)
+    return get_all_users(db, current_user.empresa_id, skip, limit, activo)
 
 
 @router.get("/{usuario_id}", response_model=UsuarioResponse)

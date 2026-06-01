@@ -30,5 +30,7 @@ class UsuarioResponse(BaseModel):
     activo: bool
     area_id: Optional[UUID] = None
     cargo_id: Optional[UUID] = None
+    area_nombre: Optional[str] = None
+    cargo_nombre: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
