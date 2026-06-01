@@ -59,3 +59,11 @@ class User(Base):
     cargo = relationship("Cargo", foreign_keys=[cargo_id])
 
     __table_args__ = (Index("ix_users_empresa_activo", "empresa_id", "activo"),)
+
+    @property
+    def area_nombre(self) -> str | None:
+        return self.area.nombre if self.area else None
+
+    @property
+    def cargo_nombre(self) -> str | None:
+        return self.cargo.nombre if self.cargo else None
