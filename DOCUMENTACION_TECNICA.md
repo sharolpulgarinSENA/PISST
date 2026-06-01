@@ -1,6 +1,6 @@
 # Documentación Técnica — PISST
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
-**Versión:** 1.1 | **Fecha:** 2026-05-30 | **Estado:** Producción
+**Versión:** 1.2 | **Fecha:** 2026-05-31 | **Estado:** Producción
 
 ---
 
@@ -62,8 +62,8 @@ El sistema implementa **control de acceso basado en roles (RBAC)** con 4 niveles
 - **Frontend:** En producción en Vercel ✅
 - **Base de datos:** Neon PostgreSQL (cloud) ✅
 - **CI/CD:** GitHub Actions ejecutándose en cada push ✅
-- **Tests automáticos:** 94 tests pasando al 100% ✅
-- **Cobertura de código:** 74% ✅
+- **Tests automáticos:** 176 tests pasando al 100% ✅
+- **Cobertura de código:** 90% ✅
 
 ---
 
@@ -192,6 +192,8 @@ El sistema es **multi-tenant por empresa**. Cada entidad del dominio está ligad
 | Logout real | Invalida refresh y session token en BD |
 | Gestión de empleados | SST crea empleados con área y cargo asignados |
 | Sesión única | Cada login invalida la sesión anterior; session_token validado en cada request |
+| Filtro de usuarios | `GET /usuarios/?activo=true\|false` filtra por estado; sin parámetro devuelve todos |
+| Nombres en respuesta | `GET /usuarios/` incluye `area_nombre` y `cargo_nombre` listos para el frontend |
 
 ### 3.2 Gestión de Incidentes y FURAT
 
@@ -499,10 +501,15 @@ Los tests usan **SQLite en memoria** — no requieren conexión a Neon ni variab
 | `tests/test_incidente_service.py` | Servicio de incidentes, investigaciones y acciones correctivas | 18 |
 | `tests/test_riesgo_service.py` | Servicio de peligros, evaluaciones y medidas de control | 18 |
 | `tests/test_capacitacion_service.py` | Servicio de capacitaciones, sesiones, asistencia y evaluaciones | 22 |
-| `tests/test_metricas.py` | Endpoints de métricas | 2 |
-| `tests/test_usuarios.py` | Endpoints de usuarios | 4 |
+| `tests/test_auditoria_service.py` | Servicio de auditorías, hallazgos y no conformidades | 18 |
+| `tests/test_usuario_service.py` | Servicio de usuarios — crear, filtrar, actualizar, área y cargo | 26 |
+| `tests/test_admin_router.py` | Endpoints HTTP de administración con X-Admin-Key | 16 |
+| `tests/test_furat_service.py` | Generación del PDF FURAT con distintos escenarios | 6 |
+| `tests/test_metricas_service.py` | KPIs, dashboard, alertas, PDF y Excel ejecutivos | 20 |
+| `tests/test_metricas.py` | Endpoints HTTP de métricas | 2 |
+| `tests/test_usuarios.py` | Endpoints HTTP de usuarios | 6 |
 
-**Total: 94 tests — cobertura global: 74%**
+**Total: 176 tests — cobertura global: 90%**
 
 #### Diferencia entre tests de endpoint y tests de servicio
 
@@ -614,6 +621,59 @@ Todos los errores retornan:
 
 ## 8. Historial de Cambios
 
+### Sprint 8 — Cobertura total de metricas_service (84% → 90%)
+
+**Tests — 20 tests nuevos:**
+
+| Función | Casos cubiertos |
+|---|---|
+| `get_kpis` | empresa vacía (todo cero), con empleados, con accidentes, con días de incapacidad, incidentes que no son accidentes no cuentan |
+| `get_dashboard_gerencia` | vacío (cumplimiento 100%), incidentes activos, cumplimiento con acciones, acciones vencidas, incidentes del último mes |
+| `get_alertas` | sin alertas, incidente abierto sin investigación (crítico), acción vencida (crítico), acción próxima 7 días (medio), casos negativos donde NO debe alertar |
+| `generar_reporte_pdf` | retorna PDF válido (`%PDF`) para los 3 períodos: mensual, trimestral, anual |
+| `generar_reporte_excel` | retorna `.xlsx` válido abierto con openpyxl, hoja "Reporte PISST" con KPIs |
+
+**Cobertura: `metricas_service` 16% → 100% | Global: 84% → 90%**
+
+---
+
+### Sprint 7 — Cobertura de admin_router y furat_service (79% → 84%)
+
+**`admin_router` (47% → 97%) — 16 tests HTTP:**
+- `POST /admin/empresas`: crear exitoso, NIT duplicado, sin header (422), clave incorrecta (403)
+- `GET /admin/empresas`: listar, clave incorrecta
+- `POST /admin/crear-sst`: exitoso, empresa inexistente, SST duplicado por empresa, email duplicado, correo fallido no explota
+- `POST /admin/crear-gerencia`: exitoso, duplicada, empresa inexistente
+- `POST /admin/limpiar-tokens`: sin caducados, con usuario de token expirado
+
+**`furat_service` (17% → 100%) — 6 tests:**
+- Retorna bytes con firma `%PDF` válida
+- Con lesión, con investigación de causas, con trabajador afectado
+- Incidente inexistente → 404
+
+---
+
+### Sprint 6 — Cobertura de auditoria_service y usuario_service + Feature usuarios (74% → 79%)
+
+**`auditoria_service` (21% → 100%) — 18 tests:**
+- Auditorías: crear, buscar, no encontrado, cambiar estado a `en_ejecucion` (registra `fecha_ejecucion`) y a `completada`
+- Hallazgos: crear, auditoría inexistente, listar
+- No conformidades: crear, hallazgo inexistente, cerrar sin evidencia (400), cerrar con evidencia (registra `fecha_cierre`)
+- Progreso: sin hallazgos (100%), con NC abierta (0%), con NC cerrada (100%)
+
+**`usuario_service` (36% → 99%) — 26 tests:**
+- `generar_password_temporal` con longitud por defecto y personalizada
+- Listar, buscar, no encontrado
+- Crear empleado: exitoso, rol no empleado (403), email duplicado (400), con área y cargo por nombre, área inexistente (404), cargo inexistente (404), correo fallido no explota
+- Actualizar: nombre, desactivar, asignar área y cargo
+- `area_nombre` y `cargo_nombre`: None cuando no tiene, con nombre correcto cuando tiene
+
+**Feature `/usuarios/` — Solicitud de Sharon:**
+- `GET /usuarios/?activo=true|false` filtra por estado activo/inactivo; sin parámetro devuelve todos
+- `UsuarioResponse` incluye `area_nombre` y `cargo_nombre` listos para el frontend (via properties ORM en el modelo `User`)
+
+---
+
 ### Sprint 5 — Deuda técnica: arquitectura de servicios y cobertura de tests
 
 **Arquitectura:**
@@ -707,5 +767,5 @@ Todos los errores retornan:
 
 ---
 
-*Documentación actualizada el 2026-05-30*
+*Documentación actualizada el 2026-05-31*
 *Proyecto PISST — SENA*
