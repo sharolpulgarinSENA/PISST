@@ -12,3 +12,7 @@ test.db
 # Archivos de sistema
 .DS_Store
 Thumbs.db
+
+# Cobertura de tests
+.coverage
+htmlcov/
