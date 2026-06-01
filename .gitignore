@@ -16,3 +16,6 @@ Thumbs.db
 # Cobertura de tests
 .coverage
 htmlcov/
+
+# Documentos locales (no subir al repo)
+RESUMEN_PROYECTO.md
