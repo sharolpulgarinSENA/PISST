@@ -35,6 +35,7 @@ class LoginResponse(BaseModel):
     token_type: str = "bearer"
     role: str
     nombre: str
+    debe_cambiar_password: bool
 
 
 class RegisterRequest(BaseModel):
