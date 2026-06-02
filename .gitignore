@@ -17,5 +17,3 @@ Thumbs.db
 .coverage
 htmlcov/
 
-# Documentos locales (no subir al repo)
-RESUMEN_PROYECTO.md

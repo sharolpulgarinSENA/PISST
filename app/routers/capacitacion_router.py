@@ -1,4 +1,5 @@
 # app/routers/capacitacion_router.py
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -29,12 +30,16 @@ router = APIRouter(prefix="/capacitaciones", tags=["Capacitaciones"])
 # ── Capacitaciones ────────────────────────────────────────────────
 
 
-@router.get("/")
+@router.get("/", response_model=List[CapacitacionResponse])
 def listar_capacitaciones(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    activo: Optional[bool] = True,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Lista todas las capacitaciones de la empresa."""
-    return capacitacion_service.get_all_capacitaciones(db, current_user.empresa_id)
+    """Lista capacitaciones de la empresa. ?activo=true (default) | false | sin parámetro = todas."""
+    return capacitacion_service.get_all_capacitaciones(
+        db, current_user.empresa_id, activo
+    )
 
 
 @router.post("/", status_code=201)
