@@ -24,13 +24,11 @@ from app.schemas.capacitacion import (
 # ── Capacitaciones ────────────────────────────────────────────────
 
 
-def get_all_capacitaciones(db: Session, empresa_id: UUID):
-    return (
-        db.query(Capacitacion)
-        .filter(Capacitacion.empresa_id == empresa_id, Capacitacion.activo == True)
-        .order_by(Capacitacion.fecha_creacion.desc())
-        .all()
-    )
+def get_all_capacitaciones(db: Session, empresa_id: UUID, activo: bool | None = True):
+    query = db.query(Capacitacion).filter(Capacitacion.empresa_id == empresa_id)
+    if activo is not None:
+        query = query.filter(Capacitacion.activo == activo)
+    return query.order_by(Capacitacion.fecha_creacion.desc()).all()
 
 
 def create_capacitacion(db: Session, datos: CapacitacionCreate, empresa_id: UUID):
