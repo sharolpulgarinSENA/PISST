@@ -166,6 +166,7 @@ def crear_usuario_sst(
         role=RoleEnum.sst,
         empresa_id=datos.empresa_id,
         activo=True,
+        debe_cambiar_password=True,
     )
     db.add(nuevo_sst)
     db.commit()
@@ -229,6 +230,7 @@ def crear_usuario_gerencia(
         role=RoleEnum.gerencia,
         empresa_id=datos.empresa_id,
         activo=True,
+        debe_cambiar_password=True,
     )
     db.add(nuevo_gerencia)
     db.commit()
