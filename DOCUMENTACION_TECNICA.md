@@ -1,6 +1,6 @@
 # Documentación Técnica — PISST
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
-**Versión:** 1.2 | **Fecha:** 2026-05-31 | **Estado:** Producción
+**Versión:** 1.3 | **Fecha:** 2026-06-03 | **Estado:** Producción
 
 ---
 
@@ -39,7 +39,7 @@ El sistema centraliza en una sola plataforma:
 | **Contexto** | Proyecto académico-empresarial desarrollado en el SENA |
 | **Normativa aplicable** | Decreto 1072/2015, Resolución 0312/2019, Resolución 0156/2005 (FURAT) |
 | **Problema que resuelve** | Eliminar la gestión manual en papel del SG-SST, reducir tiempos de respuesta ante incidentes y mejorar la trazabilidad de acciones correctivas |
-| **Versión actual** | V1.1 |
+| **Versión actual** | V1.3 |
 
 ### 1.3 Roles del Sistema y Matriz de Acceso
 
@@ -62,8 +62,8 @@ El sistema implementa **control de acceso basado en roles (RBAC)** con 4 niveles
 - **Frontend:** En producción en Vercel ✅
 - **Base de datos:** Neon PostgreSQL (cloud) ✅
 - **CI/CD:** GitHub Actions ejecutándose en cada push ✅
-- **Tests automáticos:** 176 tests pasando al 100% ✅
-- **Cobertura de código:** 90% ✅
+- **Tests automáticos:** 187 tests pasando al 100% ✅
+- **Cobertura de código:** 91% ✅
 
 ---
 
@@ -184,8 +184,8 @@ El sistema es **multi-tenant por empresa**. Cada entidad del dominio está ligad
 
 | Funcionalidad | Detalle |
 |---|---|
-| Login con JWT | Access token (30 min) + Refresh token (7 días) |
-| Cambio de contraseña obligatorio | Primer login fuerza cambio de contraseña temporal |
+| Login con JWT | Access token (30 min) + Refresh token (7 días). La respuesta incluye `debe_cambiar_password` para que el frontend redirija sin esperar un 403 |
+| Cambio de contraseña obligatorio | Primer login fuerza cambio de contraseña temporal. El flag aplica a todos los roles creados por el admin (SST, Gerencia) y por el SST (empleados) |
 | Bloqueo por intentos | 5 intentos fallidos → bloqueo 5 minutos |
 | Recuperación de contraseña | Token por correo, expira en 30 minutos |
 | Validación de contraseña | Mínimo 8 caracteres, mayúscula, minúscula, número y símbolo |
@@ -239,6 +239,7 @@ borrador → en_revision → abierto → en_investigacion → cerrado
 | Evaluaciones | Preguntas de opción múltiple con calificación automática |
 | Certificados PDF | Generación automática al aprobar |
 | Cobertura | Porcentaje del plan anual de capacitaciones cumplido |
+| Filtro por estado | `GET /capacitaciones/?activo=true` (default) \| `false` \| sin parámetro = todas |
 
 ### 3.5 Auditorías Internas
 
@@ -503,13 +504,14 @@ Los tests usan **SQLite en memoria** — no requieren conexión a Neon ni variab
 | `tests/test_capacitacion_service.py` | Servicio de capacitaciones, sesiones, asistencia y evaluaciones | 22 |
 | `tests/test_auditoria_service.py` | Servicio de auditorías, hallazgos y no conformidades | 18 |
 | `tests/test_usuario_service.py` | Servicio de usuarios — crear, filtrar, actualizar, área y cargo | 26 |
-| `tests/test_admin_router.py` | Endpoints HTTP de administración con X-Admin-Key | 16 |
+| `tests/test_admin_router.py` | Endpoints HTTP de administración con X-Admin-Key + flag debe_cambiar_password | 18 |
 | `tests/test_furat_service.py` | Generación del PDF FURAT con distintos escenarios | 6 |
 | `tests/test_metricas_service.py` | KPIs, dashboard, alertas, PDF y Excel ejecutivos | 20 |
+| `tests/test_deps.py` | Autenticación HTTP: token inválido/expirado, usuario inexistente, sesión inválida, rol insuficiente | 8 |
 | `tests/test_metricas.py` | Endpoints HTTP de métricas | 2 |
 | `tests/test_usuarios.py` | Endpoints HTTP de usuarios | 6 |
 
-**Total: 176 tests — cobertura global: 90%**
+**Total: 187 tests — cobertura global: 91%**
 
 #### Diferencia entre tests de endpoint y tests de servicio
 
@@ -620,6 +622,36 @@ Todos los errores retornan:
 ---
 
 ## 8. Historial de Cambios
+
+### Integración Frontend — Ajustes de contrato, bugs y calidad (91% cobertura)
+
+**Cambios en contrato de API solicitados por el equipo frontend:**
+
+- **`POST /auth/login`** ahora devuelve `debe_cambiar_password: bool` en la respuesta. El frontend puede redirigir a `/cambiar-password` directamente tras el login sin esperar un 403 posterior.
+- **`GET /capacitaciones/`** acepta parámetro opcional `?activo=true|false`. Sin parámetro devuelve solo activas (comportamiento anterior). Ahora también tiene `response_model=List[CapacitacionResponse]` que faltaba.
+
+**Bugs corregidos:**
+
+- **`POST /admin/crear-sst` y `POST /admin/crear-gerencia`**: los usuarios creados por el admin no tenían `debe_cambiar_password=True`, por lo que podían entrar sin cambiar su contraseña temporal. Corregido explicitando el flag en ambos endpoints (igual que `POST /usuarios/`).
+- **`deps.py`**: `user_id` del JWT se pasaba como string al filtro de BD — falla silenciosa en SQLite. Corregido con `UUID(user_id)` explícito (mismo fix ya aplicado en `auth_service.py`).
+
+**Símbolos válidos en `validar_fortaleza_password`** (confirmado para el frontend):
+```
+! @ # $ % ^ & * ( ) , . ? " : { } | < > _ -
+```
+Regex exacto: `[!@#$%^&*(),.?\":{}|<>_\-]`
+
+**Tests — +11 tests (176 → 187):**
+
+| Archivo | Cambio |
+|---|---|
+| `test_auth.py` | Verifica `debe_cambiar_password=False` en login normal y `=True` en primer login |
+| `test_admin_router.py` | 2 tests nuevos: consultan la BD tras crear SST/Gerencia y verifican el flag |
+| `test_deps.py` | Nuevo — 8 tests HTTP cubren todos los paths de error de `get_current_user` y `require_role` |
+
+**Cobertura: `deps.py` 38% → 100% | Global: 90% → 91%**
+
+---
 
 ### Sprint 8 — Cobertura total de metricas_service (84% → 90%)
 
@@ -767,5 +799,5 @@ Todos los errores retornan:
 
 ---
 
-*Documentación actualizada el 2026-05-31*
+*Documentación actualizada el 2026-06-03*
 *Proyecto PISST — SENA*
