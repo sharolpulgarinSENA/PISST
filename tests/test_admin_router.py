@@ -238,6 +238,58 @@ def test_limpiar_tokens_sin_caducados(client):
     assert "Limpieza completada" in resp.json()["mensaje"]
 
 
+def test_sst_creado_con_debe_cambiar_password(client, db):
+    from uuid import UUID as _UUID
+
+    nit = secrets.token_hex(6)
+    resp_empresa = client.post(
+        "/admin/empresas", json={"nombre": "Emp Flag SST", "nit": nit}, headers=h()
+    )
+    empresa_id = resp_empresa.json()["empresa_id"]
+
+    with patch("app.routers.admin_router.enviar_correo_bienvenida", return_value=True):
+        resp = client.post(
+            "/admin/crear-sst",
+            json={
+                "nombre": "SST Flag",
+                "email": f"flag_sst_{secrets.token_hex(4)}@test.com",
+                "empresa_id": empresa_id,
+            },
+            headers=h(),
+        )
+    assert resp.status_code == 201
+    usuario_id = resp.json()["usuario_id"]
+    user = db.query(User).filter(User.id == _UUID(usuario_id)).first()
+    assert user is not None
+    assert user.debe_cambiar_password is True
+
+
+def test_gerencia_creado_con_debe_cambiar_password(client, db):
+    from uuid import UUID as _UUID
+
+    nit = secrets.token_hex(6)
+    resp_empresa = client.post(
+        "/admin/empresas", json={"nombre": "Emp Flag Ger", "nit": nit}, headers=h()
+    )
+    empresa_id = resp_empresa.json()["empresa_id"]
+
+    with patch("app.routers.admin_router.enviar_correo_bienvenida", return_value=True):
+        resp = client.post(
+            "/admin/crear-gerencia",
+            json={
+                "nombre": "Gerencia Flag",
+                "email": f"flag_ger_{secrets.token_hex(4)}@test.com",
+                "empresa_id": empresa_id,
+            },
+            headers=h(),
+        )
+    assert resp.status_code == 201
+    usuario_id = resp.json()["usuario_id"]
+    user = db.query(User).filter(User.id == _UUID(usuario_id)).first()
+    assert user is not None
+    assert user.debe_cambiar_password is True
+
+
 def test_limpiar_tokens_con_caducados(client, db, empresa):
     user = User(
         nombre="User Expirado",

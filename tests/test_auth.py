@@ -15,6 +15,35 @@ def test_login_correcto(client, usuario_sst):
     assert "access_token" in data
     assert "refresh_token" in data
     assert data["role"] == "sst"
+    assert "debe_cambiar_password" in data
+    assert data["debe_cambiar_password"] is False
+
+
+def test_login_debe_cambiar_password_true(client, db, empresa):
+    import secrets as _s
+
+    from app.core.security import get_password_hash
+    from app.models.user import RoleEnum, User
+
+    email = f"nuevo_{_s.token_hex(4)}@test.com"
+    user = User(
+        nombre="SST Nuevo",
+        email=email,
+        password_hash=get_password_hash("Password1!"),
+        role=RoleEnum.sst,
+        empresa_id=empresa.id,
+        activo=True,
+        debe_cambiar_password=True,
+    )
+    db.add(user)
+    db.commit()
+
+    resp = client.post(
+        "/auth/login",
+        json={"email": email, "password": "Password1!", "recaptcha_token": "test"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["debe_cambiar_password"] is True
 
 
 def test_login_password_incorrecta(client, usuario_sst):
