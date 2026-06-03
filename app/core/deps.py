@@ -2,6 +2,8 @@
 # Este archivo protege los endpoints verificando el token JWT
 # y el rol del usuario antes de ejecutar cualquier función
 
+from uuid import UUID
+
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
@@ -39,7 +41,7 @@ def get_current_user(
     except JWTError:
         raise HTTPException(status_code=401, detail="Token inválido o expirado")
 
-    user = db.query(User).filter(User.id == user_id, User.activo == True).first()
+    user = db.query(User).filter(User.id == UUID(user_id), User.activo == True).first()
 
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
