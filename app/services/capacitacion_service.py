@@ -24,7 +24,7 @@ from app.schemas.capacitacion import (
 # ── Capacitaciones ────────────────────────────────────────────────
 
 
-def get_all_capacitaciones(db: Session, empresa_id: UUID, activo: bool | None = True):
+def get_all_capacitaciones(db: Session, empresa_id: UUID, activo: bool | None = None):
     query = db.query(Capacitacion).filter(Capacitacion.empresa_id == empresa_id)
     if activo is not None:
         query = query.filter(Capacitacion.activo == activo)

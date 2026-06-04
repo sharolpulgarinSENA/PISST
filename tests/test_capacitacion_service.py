@@ -67,6 +67,31 @@ def test_get_all_capacitaciones_vacio(db, empresa):
     assert isinstance(resultado, list)
 
 
+def test_get_all_capacitaciones_devuelve_activas_e_inactivas(db, empresa):
+    cap = make_capacitacion(db, empresa)
+    capacitacion_service.toggle_capacitacion(db, cap.id, empresa.id, False)
+    make_capacitacion(db, empresa)
+    todas = capacitacion_service.get_all_capacitaciones(db, empresa.id)
+    activas = [c for c in todas if c.activo]
+    inactivas = [c for c in todas if not c.activo]
+    assert len(activas) >= 1
+    assert len(inactivas) >= 1
+
+
+def test_get_all_capacitaciones_filtro_activo(db, empresa):
+    cap = make_capacitacion(db, empresa)
+    capacitacion_service.toggle_capacitacion(db, cap.id, empresa.id, False)
+    make_capacitacion(db, empresa)
+    solo_activas = capacitacion_service.get_all_capacitaciones(
+        db, empresa.id, activo=True
+    )
+    solo_inactivas = capacitacion_service.get_all_capacitaciones(
+        db, empresa.id, activo=False
+    )
+    assert all(c.activo for c in solo_activas)
+    assert all(not c.activo for c in solo_inactivas)
+
+
 def test_create_capacitacion(db, empresa):
     cap = make_capacitacion(db, empresa)
     assert cap.titulo == "Seguridad en alturas"
