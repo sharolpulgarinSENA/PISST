@@ -17,3 +17,10 @@ Thumbs.db
 .coverage
 htmlcov/
 
+# Jupyter
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# Datos procesados por notebooks (generados localmente)
+data/
+
