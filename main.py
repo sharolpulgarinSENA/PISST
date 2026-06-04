@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.routers import (
     admin_router,
+    analytics_router,
     area_router,
     auditoria_router,
     auth_router,
@@ -110,6 +111,7 @@ app.include_router(usuario_router.router)
 app.include_router(admin_router.router)
 app.include_router(area_router.router)
 app.include_router(cargo_router.router)
+app.include_router(analytics_router.router)
 
 
 @app.get("/", tags=["Health"])

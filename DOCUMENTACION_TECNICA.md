@@ -1,6 +1,6 @@
 # Documentación Técnica — PISST
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
-**Versión:** 1.4 | **Fecha:** 2026-06-04 | **Estado:** Producción
+**Versión:** 1.5 | **Fecha:** 2026-06-04 | **Estado:** Producción
 
 ---
 
@@ -62,7 +62,7 @@ El sistema implementa **control de acceso basado en roles (RBAC)** con 4 niveles
 - **Frontend:** En producción en Vercel ✅
 - **Base de datos:** Neon PostgreSQL (cloud) ✅
 - **CI/CD:** GitHub Actions ejecutándose en cada push ✅
-- **Tests automáticos:** 189 tests pasando al 100% ✅
+- **Tests automáticos:** 207 tests pasando al 100% ✅
 - **Cobertura de código:** 91% ✅
 
 ---
@@ -282,7 +282,28 @@ planificada → en_ejecucion → completada
 | Historial | Historial de conversaciones paginado por usuario |
 | Modo emergencia | Detección de palabras clave críticas con respuesta especial |
 
-### 3.8 Administración del Sistema
+### 3.8 Analytics — Analítica Integrada
+
+**Endpoints:** `/analytics/*`
+
+Módulo de solo lectura que usa **Pandas** y **NumPy** sobre los datos existentes para generar KPIs avanzados y alertas. No toca ningún servicio existente ni escribe en la BD.
+
+| Endpoint | Rol | Qué devuelve |
+|---|---|---|
+| `GET /analytics/incidentes` | sst, gerencia | Distribución por tipo y severidad, tasa mensual promedio, tendencia (aumento/baja/estable) |
+| `GET /analytics/riesgos` | sst, gerencia | Distribución por nivel (bajo/medio/alto/crítico), % con medidas implementadas, peligros críticos sin control |
+| `GET /analytics/capacitaciones` | sst, gerencia | Tasa de aprobación global, asistencia promedio, alertas de empleados con asistencia < 80%, capacitaciones sin sesión realizada |
+| `GET /analytics/cumplimiento` | sst, gerencia | Score SG-SST (0–100) y desglose por módulo: incidentes investigados, peligros con control, capacitaciones realizadas, NC cerradas |
+
+**Principios del módulo:**
+- Estrictamente de solo lectura (`db.query()` únicamente — nunca `db.add/commit/delete`)
+- Multi-tenant: toda query filtra por `empresa_id` del usuario autenticado
+- No invasivo: un error en analytics no afecta el backend principal
+- Reutiliza el mismo JWT/RBAC del resto del proyecto
+
+---
+
+### 3.9 Administración del Sistema
 
 **Endpoints:** `/admin/*`
 
@@ -315,6 +336,8 @@ Protegidos con `X-Admin-Key` en el header.
 | Rate limiting | SlowAPI | 0.1.9 |
 | PDF | ReportLab | 4.5.x |
 | Excel | openpyxl | 3.1.5 |
+| Analítica de datos | Pandas | 3.0.3 |
+| Cómputo numérico | NumPy | 2.4.6 |
 | HTTP client | httpx | 0.28.x |
 | IA | Google Gemini (google-genai) | 2.2.0 |
 | Correo | Resend | 2.30.x |
@@ -511,8 +534,9 @@ Los tests usan **SQLite en memoria** — no requieren conexión a Neon ni variab
 | `tests/test_deps.py` | Autenticación HTTP: token inválido/expirado, usuario inexistente, sesión inválida, rol insuficiente | 8 |
 | `tests/test_metricas.py` | Endpoints HTTP de métricas | 2 |
 | `tests/test_usuarios.py` | Endpoints HTTP de usuarios | 6 |
+| `tests/test_analytics_service.py` | Servicio analítico: incidentes, riesgos, capacitaciones, cumplimiento, multi-tenancy | 12 |
 
-**Total: 189 tests — cobertura global: 91%**
+**Total: 207 tests — cobertura global: 91%**
 
 #### Diferencia entre tests de endpoint y tests de servicio
 
@@ -599,6 +623,7 @@ X-Admin-Key: <ADMIN_SECRET_KEY>
 | Áreas | `/areas` | sst |
 | Cargos | `/cargos` | sst |
 | Administración | `/admin` | X-Admin-Key |
+| Analytics | `/analytics` | sst, gerencia |
 
 > Documentación interactiva disponible en `/docs` (solo en `ENVIRONMENT=development`)
 
@@ -623,6 +648,50 @@ Todos los errores retornan:
 ---
 
 ## 8. Historial de Cambios
+
+### Sprint 10 — Módulo de Analytics con Pandas y NumPy (195 → 207 tests)
+
+**Objetivo:** Implementar analítica integrada dentro del proyecto PISST, sin crear un servicio separado. El módulo es estrictamente de solo lectura y usa Pandas y NumPy para procesar datos existentes en Neon.
+
+**Archivos nuevos:**
+
+| Archivo | Descripción |
+|---|---|
+| `app/services/analytics_service.py` | 4 funciones analíticas con Pandas/NumPy |
+| `app/routers/analytics_router.py` | 4 endpoints `/analytics/*` con RBAC |
+| `tests/test_analytics_service.py` | 12 tests de servicio |
+| `notebooks/01_exploracion_incidentes.ipynb` | Exploración de incidentes para sustentación |
+| `notebooks/02_exploracion_riesgos.ipynb` | Exploración de peligros y controles para sustentación |
+| `notebooks/03_exploracion_capacitaciones.ipynb` | Exploración de asistencia y evaluaciones para sustentación |
+
+**Archivos modificados:**
+
+| Archivo | Cambio |
+|---|---|
+| `main.py` | Registro de `analytics_router` |
+| `requirements.txt` | Agrega `pandas>=2.0.0` y `numpy>=1.24.0` |
+
+**Endpoints nuevos:**
+
+| Endpoint | Qué calcula |
+|---|---|
+| `GET /analytics/incidentes` | Distribución por tipo/severidad, tasa mensual, tendencia |
+| `GET /analytics/riesgos` | Niveles de riesgo, % con medidas implementadas, críticos sin control |
+| `GET /analytics/capacitaciones` | Tasa de aprobación, asistencia promedio, alertas < 80% |
+| `GET /analytics/cumplimiento` | Score SG-SST 0–100 desglosado en 4 componentes |
+
+**Tests — +12 tests (195 → 207):**
+- `test_analytics_incidentes_sin_datos`: respuesta vacía sin explotar
+- `test_analytics_incidentes_con_datos`: distribuciones por tipo y severidad correctas
+- `test_analytics_multitenant_incidentes`: empresa A no ve datos de empresa B
+- `test_analytics_riesgos_sin_datos` / `_distribucion` / `_pct_control`: cobertura completa
+- `test_analytics_capacitaciones_sin_datos` / `_aprobacion` / `_alerta_asistencia` / `_sin_sesion_realizada`
+- `test_analytics_cumplimiento_vacio`: score 0 sin datos, desglose con las 4 claves
+- `test_analytics_cumplimiento_con_datos_parciales`: score parcial cuando hay capacitaciones realizadas
+
+**Total: 207 tests — cobertura global: 91%**
+
+---
 
 ### Integración Frontend II — GET /capacitaciones/ devuelve todas por defecto
 
