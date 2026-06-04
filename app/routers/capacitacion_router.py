@@ -32,7 +32,7 @@ router = APIRouter(prefix="/capacitaciones", tags=["Capacitaciones"])
 
 @router.get("/", response_model=List[CapacitacionResponse])
 def listar_capacitaciones(
-    activo: Optional[bool] = True,
+    activo: Optional[bool] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
