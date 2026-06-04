@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [barner-acosta, Dev, main]
+    branches: [main]
   pull_request:
     branches: [Dev, main]
 
