@@ -1,6 +1,6 @@
 # Documentación Técnica — PISST
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
-**Versión:** 1.3 | **Fecha:** 2026-06-03 | **Estado:** Producción
+**Versión:** 1.4 | **Fecha:** 2026-06-04 | **Estado:** Producción
 
 ---
 
@@ -39,7 +39,7 @@ El sistema centraliza en una sola plataforma:
 | **Contexto** | Proyecto académico-empresarial desarrollado en el SENA |
 | **Normativa aplicable** | Decreto 1072/2015, Resolución 0312/2019, Resolución 0156/2005 (FURAT) |
 | **Problema que resuelve** | Eliminar la gestión manual en papel del SG-SST, reducir tiempos de respuesta ante incidentes y mejorar la trazabilidad de acciones correctivas |
-| **Versión actual** | V1.3 |
+| **Versión actual** | V1.4 |
 
 ### 1.3 Roles del Sistema y Matriz de Acceso
 
@@ -62,7 +62,7 @@ El sistema implementa **control de acceso basado en roles (RBAC)** con 4 niveles
 - **Frontend:** En producción en Vercel ✅
 - **Base de datos:** Neon PostgreSQL (cloud) ✅
 - **CI/CD:** GitHub Actions ejecutándose en cada push ✅
-- **Tests automáticos:** 187 tests pasando al 100% ✅
+- **Tests automáticos:** 189 tests pasando al 100% ✅
 - **Cobertura de código:** 91% ✅
 
 ---
@@ -239,7 +239,7 @@ borrador → en_revision → abierto → en_investigacion → cerrado
 | Evaluaciones | Preguntas de opción múltiple con calificación automática |
 | Certificados PDF | Generación automática al aprobar |
 | Cobertura | Porcentaje del plan anual de capacitaciones cumplido |
-| Filtro por estado | `GET /capacitaciones/?activo=true` (default) \| `false` \| sin parámetro = todas |
+| Filtro por estado | `GET /capacitaciones/` devuelve **todas** por defecto. `?activo=true` solo activas, `?activo=false` solo inactivas |
 
 ### 3.5 Auditorías Internas
 
@@ -505,13 +505,14 @@ Los tests usan **SQLite en memoria** — no requieren conexión a Neon ni variab
 | `tests/test_auditoria_service.py` | Servicio de auditorías, hallazgos y no conformidades | 18 |
 | `tests/test_usuario_service.py` | Servicio de usuarios — crear, filtrar, actualizar, área y cargo | 26 |
 | `tests/test_admin_router.py` | Endpoints HTTP de administración con X-Admin-Key + flag debe_cambiar_password | 18 |
+| `tests/test_capacitacion_service.py` | Servicio de capacitaciones, sesiones, asistencia y evaluaciones + filtro activo | 24 |
 | `tests/test_furat_service.py` | Generación del PDF FURAT con distintos escenarios | 6 |
 | `tests/test_metricas_service.py` | KPIs, dashboard, alertas, PDF y Excel ejecutivos | 20 |
 | `tests/test_deps.py` | Autenticación HTTP: token inválido/expirado, usuario inexistente, sesión inválida, rol insuficiente | 8 |
 | `tests/test_metricas.py` | Endpoints HTTP de métricas | 2 |
 | `tests/test_usuarios.py` | Endpoints HTTP de usuarios | 6 |
 
-**Total: 187 tests — cobertura global: 91%**
+**Total: 189 tests — cobertura global: 91%**
 
 #### Diferencia entre tests de endpoint y tests de servicio
 
@@ -622,6 +623,24 @@ Todos los errores retornan:
 ---
 
 ## 8. Historial de Cambios
+
+### Integración Frontend II — GET /capacitaciones/ devuelve todas por defecto
+
+**Solicitud de Sharon:** el frontend necesita recibir todas las capacitaciones (activas e inactivas) y filtrar localmente.
+
+**Cambio:** `GET /capacitaciones/` ahora devuelve **todas** por defecto en lugar de solo las activas.
+
+| Request | Antes | Ahora |
+|---------|-------|-------|
+| `GET /capacitaciones/` | Solo activas | **Todas** |
+| `GET /capacitaciones/?activo=true` | Solo activas | Solo activas |
+| `GET /capacitaciones/?activo=false` | Solo inactivas | Solo inactivas |
+
+**Archivos modificados:** `capacitacion_service.py` y `capacitacion_router.py` (default `activo=True` → `activo=None`).
+
+**Tests:** +2 tests verifican que el default devuelve activas e inactivas, y que el filtro explícito sigue funcionando. Total: 187 → **189 tests**.
+
+---
 
 ### Integración Frontend — Ajustes de contrato, bugs y calidad (91% cobertura)
 
@@ -799,5 +818,5 @@ Regex exacto: `[!@#$%^&*(),.?\":{}|<>_\-]`
 
 ---
 
-*Documentación actualizada el 2026-06-03*
+*Documentación actualizada el 2026-06-04*
 *Proyecto PISST — SENA*
