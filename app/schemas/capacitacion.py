@@ -60,7 +60,7 @@ class SesionResponse(BaseModel):
     id: UUID
     fecha: datetime
     lugar: Optional[str]
-    activa: bool
+    estado: str
     capacitacion_id: UUID
 
     model_config = ConfigDict(from_attributes=True)

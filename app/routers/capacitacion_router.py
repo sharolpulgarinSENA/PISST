@@ -92,6 +92,19 @@ def crear_sesion(
     return capacitacion_service.create_sesion(db, datos, current_user.empresa_id)
 
 
+@router.patch("/sesiones/{sesion_id}/estado", response_model=SesionResponse)
+def cambiar_estado_sesion(
+    sesion_id: UUID,
+    estado: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst")),
+):
+    """Cambia el estado de una sesión. Valores: programada, realizada, no_realizada, cancelada."""
+    return capacitacion_service.cambiar_estado_sesion(
+        db, sesion_id, current_user.empresa_id, estado
+    )
+
+
 @router.patch("/sesiones/{sesion_id}", response_model=SesionResponse)
 def reprogramar_sesion(
     sesion_id: UUID,

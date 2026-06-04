@@ -64,7 +64,7 @@ class SesionCapacitacion(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     fecha = Column(DateTime, nullable=False)
     lugar = Column(String(300))
-    activa = Column(Boolean, default=True)
+    estado = Column(String(20), default="programada")
     fecha_creacion = Column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )

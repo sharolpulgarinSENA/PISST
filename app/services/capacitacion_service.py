@@ -99,6 +99,8 @@ def toggle_capacitacion(
     return cap
 
 
+ESTADOS_SESION_VALIDOS = {"programada", "realizada", "no_realizada", "cancelada"}
+
 # ── Sesiones ──────────────────────────────────────────────────────
 
 
@@ -149,11 +151,42 @@ def reprogramar_sesion(db: Session, sesion_id: UUID, empresa_id: UUID, datos):
     if not sesion:
         raise HTTPException(status_code=404, detail="Sesión no encontrada")
 
+    if sesion.estado != "programada":
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden reprogramar sesiones en estado 'programada'",
+        )
+
     if datos.fecha is not None:
         sesion.fecha = datos.fecha
     if datos.lugar is not None:
         sesion.lugar = datos.lugar
 
+    db.commit()
+    db.refresh(sesion)
+    return sesion
+
+
+def cambiar_estado_sesion(db: Session, sesion_id: UUID, empresa_id: UUID, estado: str):
+    if estado not in ESTADOS_SESION_VALIDOS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Estado inválido. Valores permitidos: {sorted(ESTADOS_SESION_VALIDOS)}",
+        )
+
+    sesion = (
+        db.query(SesionCapacitacion)
+        .join(Capacitacion)
+        .filter(
+            SesionCapacitacion.id == sesion_id, Capacitacion.empresa_id == empresa_id
+        )
+        .first()
+    )
+
+    if not sesion:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+
+    sesion.estado = estado
     db.commit()
     db.refresh(sesion)
     return sesion
@@ -281,27 +314,28 @@ def responder_evaluacion(
 
 
 def get_cobertura_capacitaciones(db: Session, empresa_id: UUID):
-    total_capacitaciones = (
+    total = (
         db.query(Capacitacion)
         .filter(Capacitacion.empresa_id == empresa_id, Capacitacion.activo == True)
         .count()
     )
 
-    if total_capacitaciones == 0:
-        return {"total": 0, "con_sesiones": 0, "porcentaje": 0}
+    if total == 0:
+        return {"total": 0, "completadas": 0, "porcentaje": 0}
 
-    con_sesiones = (
+    completadas = (
         db.query(Capacitacion)
         .filter(Capacitacion.empresa_id == empresa_id, Capacitacion.activo == True)
         .join(SesionCapacitacion)
+        .filter(SesionCapacitacion.estado == "realizada")
         .distinct()
         .count()
     )
 
-    porcentaje = round((con_sesiones / total_capacitaciones) * 100)
+    porcentaje = round((completadas / total) * 100)
     return {
-        "total": total_capacitaciones,
-        "con_sesiones": con_sesiones,
+        "total": total,
+        "completadas": completadas,
         "porcentaje": porcentaje,
     }
 

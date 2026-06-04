@@ -190,6 +190,64 @@ def test_reprogramar_sesion_no_encontrada(db, empresa):
     assert exc.value.status_code == 404
 
 
+def test_reprogramar_sesion_no_programada_falla(db, empresa):
+    from fastapi import HTTPException
+
+    cap = make_capacitacion(db, empresa)
+    sesion = make_sesion(db, empresa, cap)
+    capacitacion_service.cambiar_estado_sesion(db, sesion.id, empresa.id, "realizada")
+    with pytest.raises(HTTPException) as exc:
+        capacitacion_service.reprogramar_sesion(
+            db, sesion.id, empresa.id, SesionUpdate(lugar="Sala X")
+        )
+    assert exc.value.status_code == 400
+
+
+# ── cambiar_estado_sesion ────────────────────────────────────────────
+
+
+def test_cambiar_estado_sesion_valido(db, empresa):
+    cap = make_capacitacion(db, empresa)
+    sesion = make_sesion(db, empresa, cap)
+    assert sesion.estado == "programada"
+    actualizada = capacitacion_service.cambiar_estado_sesion(
+        db, sesion.id, empresa.id, "realizada"
+    )
+    assert actualizada.estado == "realizada"
+
+
+def test_cambiar_estado_todos_los_valores(db, empresa):
+    cap = make_capacitacion(db, empresa)
+    for estado in ["realizada", "no_realizada", "cancelada", "programada"]:
+        sesion = make_sesion(db, empresa, cap)
+        resultado = capacitacion_service.cambiar_estado_sesion(
+            db, sesion.id, empresa.id, estado
+        )
+        assert resultado.estado == estado
+
+
+def test_cambiar_estado_invalido_422(db, empresa):
+    from fastapi import HTTPException
+
+    cap = make_capacitacion(db, empresa)
+    sesion = make_sesion(db, empresa, cap)
+    with pytest.raises(HTTPException) as exc:
+        capacitacion_service.cambiar_estado_sesion(
+            db, sesion.id, empresa.id, "estado_inventado"
+        )
+    assert exc.value.status_code == 422
+
+
+def test_cambiar_estado_sesion_inexistente_404(db, empresa):
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc:
+        capacitacion_service.cambiar_estado_sesion(
+            db, uuid.uuid4(), empresa.id, "realizada"
+        )
+    assert exc.value.status_code == 404
+
+
 # ── asistencia ──────────────────────────────────────────────────────
 
 
@@ -294,9 +352,20 @@ def test_get_cobertura_sin_capacitaciones(db, empresa):
     assert resultado["porcentaje"] == 0
 
 
-def test_get_cobertura_con_sesion(db, empresa):
+def test_get_cobertura_sesion_programada_no_cuenta(db, empresa):
     cap = make_capacitacion(db, empresa)
-    make_sesion(db, empresa, cap)
+    make_sesion(db, empresa, cap)  # estado="programada" por defecto
     resultado = capacitacion_service.get_cobertura_capacitaciones(db, empresa.id)
     assert resultado["total"] >= 1
-    assert resultado["con_sesiones"] >= 1
+    assert resultado["completadas"] == 0
+    assert resultado["porcentaje"] == 0
+
+
+def test_get_cobertura_sesion_realizada_cuenta(db, empresa):
+    cap = make_capacitacion(db, empresa)
+    sesion = make_sesion(db, empresa, cap)
+    capacitacion_service.cambiar_estado_sesion(db, sesion.id, empresa.id, "realizada")
+    resultado = capacitacion_service.get_cobertura_capacitaciones(db, empresa.id)
+    assert resultado["total"] >= 1
+    assert resultado["completadas"] >= 1
+    assert resultado["porcentaje"] > 0
