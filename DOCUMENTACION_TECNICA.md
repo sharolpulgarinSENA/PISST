@@ -1,6 +1,6 @@
 # Documentación Técnica — PISST
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
-**Versión:** 1.5 | **Fecha:** 2026-06-04 | **Estado:** Producción
+**Versión:** 1.6 | **Fecha:** 2026-06-05 | **Estado:** Producción
 
 ---
 
@@ -214,6 +214,9 @@ borrador → en_revision → abierto → en_investigacion → cerrado
 | Acciones correctivas | Seguimiento con fecha límite, responsable y evidencia de cierre |
 | FURAT en PDF | Generación automática del formulario oficial |
 | Progreso | Porcentaje de acciones correctivas completadas |
+| Consultar investigación | `GET /incidentes/{id}/investigacion` — 404 si no existe |
+| Actualizar investigación | `PATCH /incidentes/{id}/investigacion` — actualiza campos enviados, 404 si no existe |
+| Consultar acciones | `GET /incidentes/{id}/acciones` — lista todas las acciones, [] si no hay |
 
 ### 3.3 Riesgos y Peligros
 
@@ -277,10 +280,12 @@ planificada → en_ejecucion → completada
 | Funcionalidad | Detalle |
 |---|---|
 | Chat contextual | Respuestas personalizadas según cargo y área del empleado |
-| Motor de IA | Google Gemini AI |
+| Motor de IA | Google Gemini AI (gemini-2.5-flash) |
 | Reporte rápido | Empleado reporta incidente directamente desde el chat |
 | Historial | Historial de conversaciones paginado por usuario |
 | Modo emergencia | Detección de palabras clave críticas con respuesta especial |
+| Escalamiento SST | `POST /chat/escalar` — envía historial al coordinador SST por correo vía Resend |
+| Análisis de archivos | `POST /chat/archivo` — analiza PDF e imágenes con Gemini vision. DOC/DOCX sugiere convertir a PDF. Límite: 10 MB |
 
 ### 3.8 Analytics — Analítica Integrada
 
@@ -341,6 +346,7 @@ Protegidos con `X-Admin-Key` en el header.
 | HTTP client | httpx | 0.28.x |
 | IA | Google Gemini (google-genai) | 2.2.0 |
 | Correo | Resend | 2.30.x |
+| Multipart (archivos) | python-multipart | ≥0.0.9 |
 
 ### 4.2 Frontend
 
@@ -648,6 +654,43 @@ Todos los errores retornan:
 ---
 
 ## 8. Historial de Cambios
+
+### Sprint 11 — Integración Frontend III: incidentes y chat (207 tests)
+
+**Solicitudes de Sharon y Santiago (equipo frontend):**
+
+**Nuevos endpoints de incidentes:**
+
+| Endpoint | Descripción |
+|---|---|
+| `GET /incidentes/{id}/investigacion` | Retorna la investigación del incidente. 404 si no existe |
+| `PATCH /incidentes/{id}/investigacion` | Actualiza campos de una investigación existente. 404 si no existe |
+| `GET /incidentes/{id}/acciones` | Lista todas las acciones correctivas. `[]` si no hay |
+
+**Nuevos endpoints de chat (SASBOT):**
+
+| Endpoint | Descripción |
+|---|---|
+| `POST /chat/escalar` | Envía historial de conversación al coordinador SST por correo vía Resend |
+| `POST /chat/archivo` | Analiza PDF e imágenes con Gemini vision. DOC/DOCX retorna mensaje de conversión |
+
+**Dependencia nueva:** `python-multipart>=0.0.9` — requerida para `multipart/form-data` en `/chat/archivo`
+
+**Archivos modificados:**
+
+| Archivo | Cambio |
+|---|---|
+| `app/schemas/incidente.py` | Agrega `InvestigacionUpdate` |
+| `app/services/incidente_service.py` | Agrega `get_investigacion`, `get_acciones_correctivas`, `update_investigacion` |
+| `app/routers/incidente_router.py` | Agrega 3 endpoints nuevos |
+| `app/services/ai_service.py` | Agrega `analizar_archivo_sasbot` con Gemini vision |
+| `app/services/email_service.py` | Agrega `enviar_escalar_coordinador` |
+| `app/routers/chat_router.py` | Agrega `POST /chat/escalar` y `POST /chat/archivo` |
+| `requirements.txt` | Agrega `python-multipart>=0.0.9` |
+
+**Tests:** 207 — sin regresiones
+
+---
 
 ### Sprint 10 — Módulo de Analytics con Pandas y NumPy (195 → 207 tests)
 
