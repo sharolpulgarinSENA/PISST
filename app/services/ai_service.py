@@ -132,3 +132,47 @@ El empleado reporta una emergencia. Debes:
     )
 
     return {"respuesta": response.text, "modo_emergencia": es_emergencia}
+
+
+def analizar_archivo_sasbot(
+    contenido_bytes: bytes,
+    mime_type: str,
+    nombre_archivo: str,
+    mensaje: str = "",
+) -> str:
+    """
+    Analiza un archivo (imagen o PDF) con Gemini y retorna la respuesta de SASBOT.
+    Para DOC/DOCX retorna mensaje indicando que debe convertirse a PDF.
+    """
+    TIPOS_DOC = {
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+
+    if mime_type in TIPOS_DOC:
+        return (
+            f"El archivo '{nombre_archivo}' es un documento Word. "
+            "SASBOT no puede leer documentos Word directamente. "
+            "Por favor conviértelo a PDF y vuelve a enviarlo."
+        )
+
+    contexto = (
+        mensaje
+        if mensaje
+        else "Analiza este documento en el contexto de Seguridad y Salud en el Trabajo (SST) según la normativa colombiana."
+    )
+
+    parte_archivo = types.Part.from_bytes(data=contenido_bytes, mime_type=mime_type)
+    parte_texto = types.Part(text=contexto)
+
+    response = client.models.generate_content(
+        model=MODELO,
+        contents=[types.Content(role="user", parts=[parte_archivo, parte_texto])],
+        config=types.GenerateContentConfig(
+            system_instruction=construir_system_prompt("empleado", "área general"),
+            max_output_tokens=1500,
+            temperature=0.5,
+        ),
+    )
+
+    return response.text

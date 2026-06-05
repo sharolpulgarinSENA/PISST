@@ -65,6 +65,85 @@ def enviar_correo_reset(email_destino: str, nombre: str, token: str) -> bool:
         return False
 
 
+def enviar_escalar_coordinador(
+    email_coordinador: str,
+    nombre_coordinador: str,
+    nombre_empleado: str,
+    email_empleado: str,
+    historial: list,
+    archivo_nombre: str | None = None,
+) -> bool:
+    filas_historial = "".join(
+        f"""<tr>
+              <td style="padding:8px;border:1px solid #ddd;font-size:12px;color:#666;">
+                {h.get('timestamp', '')}</td>
+              <td style="padding:8px;border:1px solid #ddd;font-size:13px;">
+                {h.get('mensaje', '')}</td>
+              <td style="padding:8px;border:1px solid #ddd;font-size:13px;color:#1d4ed8;">
+                {h.get('respuesta', '')}</td>
+            </tr>"""
+        for h in historial
+    )
+
+    archivo_info = (
+        f"<p style='color:#444;font-size:14px;'>"
+        f"<strong>Archivo adjunto:</strong> {archivo_nombre}</p>"
+        if archivo_nombre
+        else ""
+    )
+
+    payload = {
+        "from": f"PISST <{FROM_EMAIL}>",
+        "to": [email_coordinador],
+        "subject": f"Escalamiento SASBOT — {nombre_empleado}",
+        "html": f"""
+        <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:24px;">
+          <h1 style="color:#1E3A5F;">PISST — SASBOT</h1>
+          <p style="color:#666;font-size:13px;">Plataforma Integral de Seguridad y Salud en el Trabajo</p>
+          <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+          <h2 style="color:#1E3A5F;">Escalamiento de conversación</h2>
+          <p style="color:#444;font-size:15px;">
+            El empleado <strong>{nombre_empleado}</strong>
+            ({email_empleado}) ha solicitado escalamiento al coordinador SST.
+          </p>
+          {archivo_info}
+          <h3 style="color:#1E3A5F;margin-top:24px;">Últimos mensajes del chat:</h3>
+          <table style="width:100%;border-collapse:collapse;margin-top:12px;">
+            <thead>
+              <tr style="background:#1E3A5F;color:white;">
+                <th style="padding:8px;text-align:left;font-size:12px;">Fecha</th>
+                <th style="padding:8px;text-align:left;font-size:12px;">Empleado</th>
+                <th style="padding:8px;text-align:left;font-size:12px;">SASBOT</th>
+              </tr>
+            </thead>
+            <tbody>{filas_historial}</tbody>
+          </table>
+          <hr style="border:none;border-top:1px solid #eee;margin:28px 0;">
+          <p style="color:#999;font-size:12px;text-align:center;">PISST — Este es un correo automático.</p>
+        </div>
+        """,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = httpx.post(
+            RESEND_API_URL, json=payload, headers=headers, timeout=10.0
+        )
+        if response.status_code in [200, 201]:
+            logger.info(f"Escalamiento enviado a {email_coordinador}")
+            return True
+        else:
+            logger.error(f"Error escalamiento {response.status_code}: {response.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Excepción al escalar: {str(e)}")
+        return False
+
+
 def enviar_correo_bienvenida(
     email_destino: str, nombre: str, password_temporal: str
 ) -> bool:

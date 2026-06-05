@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -15,8 +15,9 @@ from app.models.incidente import (
     SeveridadEnum,
     TipoIncidenteEnum,
 )
-from app.models.user import User
-from app.services.ai_service import chat_sasbot
+from app.models.user import RoleEnum, User
+from app.services.ai_service import analizar_archivo_sasbot, chat_sasbot
+from app.services.email_service import enviar_escalar_coordinador
 
 router = APIRouter(prefix="/chat", tags=["SASBOT - Chat IA"])
 
@@ -94,6 +95,128 @@ def obtener_historial(
         {"mensaje": h.mensaje, "respuesta": h.respuesta, "timestamp": h.timestamp}
         for h in historial
     ]
+
+
+@router.post("/escalar")
+def escalar_coordinador(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Notifica al coordinador SST con el historial de conversación del empleado."""
+    coordinador = (
+        db.query(User)
+        .filter(
+            User.empresa_id == current_user.empresa_id,
+            User.role == RoleEnum.sst,
+            User.activo == True,
+        )
+        .first()
+    )
+    if not coordinador:
+        raise HTTPException(
+            status_code=404, detail="No existe coordinador SST activo en la empresa"
+        )
+
+    historial = (
+        db.query(ChatHistorial)
+        .filter(ChatHistorial.user_id == current_user.id)
+        .order_by(ChatHistorial.timestamp.asc())
+        .limit(20)
+        .all()
+    )
+
+    historial_dict = [
+        {
+            "mensaje": h.mensaje,
+            "respuesta": h.respuesta,
+            "timestamp": h.timestamp.strftime("%Y-%m-%d %H:%M") if h.timestamp else "",
+        }
+        for h in historial
+    ]
+
+    enviado = enviar_escalar_coordinador(
+        email_coordinador=coordinador.email,
+        nombre_coordinador=coordinador.nombre,
+        nombre_empleado=current_user.nombre,
+        email_empleado=current_user.email,
+        historial=historial_dict,
+    )
+
+    if not enviado:
+        raise HTTPException(
+            status_code=500, detail="Error al enviar el correo de escalamiento"
+        )
+
+    registro = ChatHistorial(
+        mensaje="[ESCALAMIENTO AL COORDINADOR SST]",
+        respuesta=f"Historial enviado al coordinador {coordinador.nombre}",
+        user_id=current_user.id,
+    )
+    db.add(registro)
+    db.commit()
+
+    return {
+        "mensaje": "Escalamiento enviado exitosamente",
+        "coordinador_email": coordinador.email,
+        "coordinador_nombre": coordinador.nombre,
+    }
+
+
+MIME_PERMITIDOS = {
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+LIMITE_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+@router.post("/archivo")
+async def analizar_archivo(
+    archivo: UploadFile = File(...),
+    mensaje: Optional[str] = Form(default=""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Recibe un archivo, lo analiza con Gemini y retorna la respuesta de SASBOT."""
+    if archivo.content_type not in MIME_PERMITIDOS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tipo de archivo no permitido: {archivo.content_type}",
+        )
+
+    contenido = await archivo.read()
+    if len(contenido) > LIMITE_BYTES:
+        raise HTTPException(
+            status_code=413, detail="El archivo supera el límite de 10 MB"
+        )
+
+    try:
+        respuesta = analizar_archivo_sasbot(
+            contenido_bytes=contenido,
+            mime_type=archivo.content_type,
+            nombre_archivo=archivo.filename,
+            mensaje=mensaje or "",
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=500, detail="Error al analizar el archivo con SASBOT"
+        )
+
+    registro = ChatHistorial(
+        mensaje=f"[ARCHIVO: {archivo.filename}] {mensaje or ''}".strip(),
+        respuesta=respuesta,
+        user_id=current_user.id,
+    )
+    db.add(registro)
+    db.commit()
+
+    return {
+        "respuesta": respuesta,
+        "modo_emergencia": False,
+        "archivo_nombre": archivo.filename,
+    }
 
 
 @router.post("/reporte-rapido", status_code=201)
