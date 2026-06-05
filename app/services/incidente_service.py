@@ -122,6 +122,26 @@ def update_estado_incidente(
 # ── Investigación ─────────────────────────────────────────────────
 
 
+def get_investigacion(db: Session, incidente_id: UUID, empresa_id: UUID):
+    """Retorna la investigación de un incidente. 404 si no existe."""
+    incidente = get_incidente_by_id(db, incidente_id, empresa_id)
+    if not incidente.investigacion:
+        raise HTTPException(
+            status_code=404, detail="Este incidente no tiene investigación registrada"
+        )
+    return incidente.investigacion
+
+
+def get_acciones_correctivas(db: Session, incidente_id: UUID, empresa_id: UUID):
+    """Retorna todas las acciones correctivas de un incidente."""
+    get_incidente_by_id(db, incidente_id, empresa_id)
+    return (
+        db.query(AccionCorrectiva)
+        .filter(AccionCorrectiva.incidente_id == incidente_id)
+        .all()
+    )
+
+
 def create_investigacion(
     db: Session, incidente_id: UUID, empresa_id: UUID, datos: InvestigacionCreate
 ):

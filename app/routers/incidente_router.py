@@ -100,6 +100,18 @@ def progreso_incidente(
 # ── Investigación ─────────────────────────────────────────────────
 
 
+@router.get("/{incidente_id}/investigacion", response_model=InvestigacionResponse)
+def obtener_investigacion(
+    incidente_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna la investigación de causas de un incidente. 404 si no existe."""
+    return incidente_service.get_investigacion(
+        db, incidente_id, current_user.empresa_id
+    )
+
+
 @router.post(
     "/{incidente_id}/investigacion",
     response_model=InvestigacionResponse,
@@ -121,6 +133,18 @@ def crear_investigacion(
 
 
 # ── Acciones Correctivas ──────────────────────────────────────────
+
+
+@router.get("/{incidente_id}/acciones", response_model=List[AccionCorrectivaResponse])
+def listar_acciones_correctivas(
+    incidente_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna todas las acciones correctivas de un incidente. [] si no hay."""
+    return incidente_service.get_acciones_correctivas(
+        db, incidente_id, current_user.empresa_id
+    )
 
 
 @router.post(
