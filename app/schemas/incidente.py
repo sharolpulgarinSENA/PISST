@@ -93,6 +93,15 @@ class InvestigacionCreate(BaseModel):
     lecciones_aprendidas: Optional[str] = None
 
 
+class InvestigacionUpdate(BaseModel):
+    metodo_analisis: Optional[str] = None
+    causas_inmediatas: Optional[str] = None
+    causas_basicas: Optional[str] = None
+    factores_contribuyentes: Optional[str] = None
+    descripcion_evento: Optional[str] = None
+    lecciones_aprendidas: Optional[str] = None
+
+
 class InvestigacionResponse(BaseModel):
     id: UUID
     metodo_analisis: str

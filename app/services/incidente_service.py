@@ -142,6 +142,16 @@ def get_acciones_correctivas(db: Session, incidente_id: UUID, empresa_id: UUID):
     )
 
 
+def update_investigacion(db: Session, incidente_id: UUID, empresa_id: UUID, datos):
+    """Actualiza los campos enviados de una investigación existente. 404 si no existe."""
+    investigacion = get_investigacion(db, incidente_id, empresa_id)
+    for campo, valor in datos.model_dump(exclude_unset=True).items():
+        setattr(investigacion, campo, valor)
+    db.commit()
+    db.refresh(investigacion)
+    return investigacion
+
+
 def create_investigacion(
     db: Session, incidente_id: UUID, empresa_id: UUID, datos: InvestigacionCreate
 ):

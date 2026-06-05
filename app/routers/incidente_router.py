@@ -18,6 +18,7 @@ from app.schemas.incidente import (
     IncidenteResponse,
     InvestigacionCreate,
     InvestigacionResponse,
+    InvestigacionUpdate,
 )
 from app.services import furat_service, incidente_service
 
@@ -109,6 +110,19 @@ def obtener_investigacion(
     """Retorna la investigación de causas de un incidente. 404 si no existe."""
     return incidente_service.get_investigacion(
         db, incidente_id, current_user.empresa_id
+    )
+
+
+@router.patch("/{incidente_id}/investigacion", response_model=InvestigacionResponse)
+def actualizar_investigacion(
+    incidente_id: UUID,
+    datos: InvestigacionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst")),
+):
+    """Actualiza los campos enviados de una investigación existente. 404 si no existe."""
+    return incidente_service.update_investigacion(
+        db, incidente_id, current_user.empresa_id, datos
     )
 
 
