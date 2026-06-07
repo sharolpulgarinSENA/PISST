@@ -225,12 +225,65 @@ def get_asistencia_by_sesion(db: Session, sesion_id: UUID):
 
 
 def get_historial_empleado(db: Session, empleado_id: UUID):
-    return (
+    asistencias = (
         db.query(Asistencia)
         .filter(Asistencia.empleado_id == empleado_id)
         .order_by(Asistencia.fecha_registro.desc())
         .all()
     )
+
+    historial = []
+    for asistencia in asistencias:
+        sesion = asistencia.sesion
+        capacitacion = sesion.capacitacion
+        evaluacion = sesion.evaluaciones[0] if sesion.evaluaciones else None
+
+        evaluacion_data = None
+        resultado_data = None
+
+        if evaluacion:
+            evaluacion_data = {
+                "id": str(evaluacion.id),
+                "titulo": evaluacion.titulo,
+                "puntaje_minimo": evaluacion.puntaje_minimo,
+                "preguntas": [
+                    {
+                        "id": str(p.id),
+                        "texto": p.texto,
+                        "opciones": [p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d],
+                    }
+                    for p in evaluacion.preguntas
+                ],
+            }
+
+            respuestas = (
+                db.query(RespuestaEmpleado)
+                .filter(
+                    RespuestaEmpleado.evaluacion_id == evaluacion.id,
+                    RespuestaEmpleado.empleado_id == empleado_id,
+                )
+                .all()
+            )
+
+            if respuestas:
+                resultado_data = {
+                    "puntaje_final": respuestas[0].puntaje_final,
+                    "aprobado": respuestas[0].aprobado,
+                    "total_preguntas": len(respuestas),
+                    "respuestas_correctas": sum(1 for r in respuestas if r.es_correcta),
+                }
+
+        historial.append(
+            {
+                "capacitacion_nombre": capacitacion.titulo,
+                "fecha_sesion": sesion.fecha,
+                "evaluacion_id": str(evaluacion.id) if evaluacion else None,
+                "evaluacion": evaluacion_data,
+                "resultado": resultado_data,
+            }
+        )
+
+    return historial
 
 
 # ── Evaluaciones ──────────────────────────────────────────────────
