@@ -2,12 +2,12 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
-from app.models.user import User
+from app.models.user import RoleEnum, User
 from app.schemas.capacitacion import (
     AsistenciaCreate,
     AsistenciaResponse,
@@ -163,9 +163,11 @@ def asistencia_por_sesion(
 def historial_empleado(
     empleado_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("sst")),
+    current_user: User = Depends(get_current_user),
 ):
     """Retorna el historial de capacitaciones de un empleado."""
+    if current_user.role == RoleEnum.empleado and current_user.id != empleado_id:
+        raise HTTPException(status_code=403, detail="No autorizado.")
     return capacitacion_service.get_historial_empleado(db, empleado_id)
 
 
