@@ -6,7 +6,11 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base, get_db
 from app.core.security import get_password_hash
+from app.models.audit_log import AuditLog  # noqa: F401 — registra tabla en metadata
 from app.models.empresa import Empresa
+from app.models.notificacion import (  # noqa: F401 — registra tabla en metadata
+    Notificacion,
+)
 from app.models.user import RoleEnum, User
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
