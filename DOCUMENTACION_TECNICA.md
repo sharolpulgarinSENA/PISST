@@ -1,6 +1,6 @@
 # Documentación Técnica — PISST
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
-**Versión:** 1.6 | **Fecha:** 2026-06-05 | **Estado:** Producción
+**Versión:** 1.7 | **Fecha:** 2026-06-07 | **Estado:** Producción
 
 ---
 
@@ -98,6 +98,7 @@ El sistema implementa **control de acceso basado en roles (RBAC)** con 4 niveles
 │  • Google Gemini AI (SASBOT)                            │
 │  • Resend (correo transaccional)                        │
 │  • Google reCAPTCHA v2                                  │
+│  • Cloudinary (fotos de perfil)                         │
 └────────────────────────┬────────────────────────────────┘
                          │ psycopg2 / SSL
 ┌────────────────────────▼────────────────────────────────┐
@@ -194,6 +195,9 @@ El sistema es **multi-tenant por empresa**. Cada entidad del dominio está ligad
 | Sesión única | Cada login invalida la sesión anterior; session_token validado en cada request |
 | Filtro de usuarios | `GET /usuarios/?activo=true\|false` filtra por estado; sin parámetro devuelve todos |
 | Nombres en respuesta | `GET /usuarios/` incluye `area_nombre` y `cargo_nombre` listos para el frontend |
+| Editar perfil propio | `PATCH /usuarios/me` — el usuario edita su propio `nombre` y `telefono`. No puede cambiar rol, cargo ni email |
+| Foto de perfil | `PUT /usuarios/me/foto` — sube o reemplaza foto (JPG/PNG/WEBP, máx 2 MB). Almacenada en Cloudinary, retorna `foto_url` |
+| Actividad propia | `GET /usuarios/me/actividad` — historial paginado de acciones del usuario. Retención: 30 días |
 
 ### 3.2 Gestión de Incidentes y FURAT
 
@@ -243,6 +247,7 @@ borrador → en_revision → abierto → en_investigacion → cerrado
 | Certificados PDF | Generación automática al aprobar |
 | Cobertura | Porcentaje del plan anual de capacitaciones cumplido |
 | Filtro por estado | `GET /capacitaciones/` devuelve **todas** por defecto. `?activo=true` solo activas, `?activo=false` solo inactivas |
+| Historial empleado | `GET /capacitaciones/empleados/{id}/historial` — empleado ve su propio historial; SST ve cualquiera. Response incluye nombre de capacitación, fecha de sesión, evaluación completa con preguntas y resultado del empleado |
 
 ### 3.5 Auditorías Internas
 
@@ -257,6 +262,7 @@ planificada → en_ejecucion → completada
 |---|---|
 | Planificación | Fecha, objetivos, área y auditor |
 | Hallazgos | Clasificación: conformidad, NC menor, NC mayor, observación |
+| No conformidades anidadas | `GET /auditorias/{id}/hallazgos` incluye `no_conformidades: []` en cada hallazgo — nunca `null` |
 | No conformidades | Seguimiento con fecha límite y evidencia de cierre |
 | Progreso | Porcentaje de no conformidades cerradas |
 
@@ -308,7 +314,41 @@ Módulo de solo lectura que usa **Pandas** y **NumPy** sobre los datos existente
 
 ---
 
-### 3.9 Administración del Sistema
+### 3.9 Notificaciones y Feed de Actividad
+
+**Endpoints:** `/notificaciones/*`
+
+Feed de eventos de la empresa en tiempo real, diferente a `/metricas/alertas` (alertas son problemas activos; el feed es historial de lo que ocurrió).
+
+| Endpoint | Rol | Descripción |
+|---|---|---|
+| `GET /notificaciones/feed` | Autenticado | Feed paginado de eventos de la empresa, del más reciente al más antiguo |
+| `PATCH /notificaciones/{id}/leido` | Autenticado | Marca una notificación como leída |
+| `PATCH /notificaciones/leer-todas` | Autenticado | Marca todas las notificaciones no leídas como leídas |
+
+**Eventos generados automáticamente:**
+
+| Tipo | Cuándo | url_destino |
+|---|---|---|
+| `reporte_nuevo` | Empleado crea un reporte | `/incidentes?reporte={id}` |
+| `reporte_estado_cambio` | SST cambia estado de un incidente | `/incidentes` |
+| `accion_correctiva_nueva` | SST crea acción correctiva | `/incidentes` |
+| `accion_correctiva_completada` | SST marca acción como completada | `/incidentes` |
+| `investigacion_completada` | SST completa investigación | `/incidentes` |
+| `capacitacion_nueva` | SST crea una capacitación | `/capacitaciones` |
+| `capacitacion_sesion_programada` | SST programa una sesión | `/capacitaciones` |
+| `capacitacion_sesion_realizada` | SST cierra sesión como realizada | `/capacitaciones` |
+| `capacitacion_sesion_cancelada` | SST cancela una sesión | `/capacitaciones` |
+| `capacitacion_sesion_reprogramada` | SST reprograma una sesión | `/capacitaciones` |
+| `riesgo_nuevo` | SST identifica un nuevo peligro | `/riesgos` |
+| `auditoria_nueva` | SST crea una auditoría | `/auditorias` |
+| `hallazgo_nuevo` | SST registra un hallazgo | `/auditorias` |
+
+**Política de retención:** registros con más de 30 días se eliminan automáticamente en cada consulta al feed.
+
+---
+
+### 3.10 Administración del Sistema
 
 **Endpoints:** `/admin/*`
 
@@ -347,6 +387,7 @@ Protegidos con `X-Admin-Key` en el header.
 | IA | Google Gemini (google-genai) | 2.2.0 |
 | Correo | Resend | 2.30.x |
 | Multipart (archivos) | python-multipart | ≥0.0.9 |
+| Almacenamiento imágenes | cloudinary | 1.44.2 |
 
 ### 4.2 Frontend
 
@@ -375,6 +416,7 @@ Protegidos con `X-Admin-Key` en el header.
 | Google Gemini AI | Motor del asistente SASBOT |
 | Resend | Correos transaccionales (bienvenida, reset de contraseña) |
 | Google reCAPTCHA v2 | Protección del endpoint de login |
+| Cloudinary | Almacenamiento de fotos de perfil (JPG/PNG/WEBP, máx 2 MB) |
 
 ### 4.5 Infraestructura y Despliegue
 
@@ -473,6 +515,9 @@ Ver [.env.example](.env.example) para la lista completa. Variables críticas:
 | `RESEND_API_KEY` | API key de Resend para correos |
 | `ADMIN_SECRET_KEY` | Clave para endpoints de administración |
 | `ENVIRONMENT` | `development` activa /docs y omite reCAPTCHA |
+| `CLOUDINARY_CLOUD_NAME` | Nombre del cloud en Cloudinary |
+| `CLOUDINARY_API_KEY` | API key de Cloudinary |
+| `CLOUDINARY_API_SECRET` | API secret de Cloudinary |
 
 ### 6.3 Migraciones de Base de Datos
 
@@ -619,13 +664,14 @@ X-Admin-Key: <ADMIN_SECRET_KEY>
 | Módulo | Prefijo | Roles permitidos |
 |---|---|---|
 | Autenticación | `/auth` | Público / Autenticado |
-| Usuarios | `/usuarios` | sst |
+| Usuarios | `/usuarios` | sst / Autenticado (perfil propio) |
 | Incidentes | `/incidentes` | sst, empleado |
 | Riesgos | `/riesgos` | sst, gerencia |
 | Capacitaciones | `/capacitaciones` | sst, gerencia, empleado |
 | Auditorías | `/auditorias` | sst, gerencia |
 | Métricas | `/metricas` | sst, gerencia |
 | Chat IA | `/chat` | Autenticado |
+| Notificaciones | `/notificaciones` | Autenticado |
 | Áreas | `/areas` | sst |
 | Cargos | `/cargos` | sst |
 | Administración | `/admin` | X-Admin-Key |
@@ -654,6 +700,71 @@ Todos los errores retornan:
 ---
 
 ## 8. Historial de Cambios
+
+### Sprint 12 — Perfil de usuario, notificaciones y fixes de contrato (207 tests)
+
+**Solicitudes de Sharon y Santiago (equipo frontend):**
+
+**Fixes de contrato de API:**
+
+| Cambio | Descripción |
+|---|---|
+| `GET /capacitaciones/empleados/{id}/historial` | Fix de acceso: empleado ahora puede ver su propio historial (antes bloqueado con 403). SST sigue viendo cualquiera |
+| `GET /capacitaciones/empleados/{id}/historial` | Response enriquecido: ahora incluye `capacitacion_nombre`, `fecha_sesion`, `evaluacion` completa con preguntas y `resultado` del empleado |
+| `GET /auditorias/{id}/hallazgos` | Cada hallazgo ahora incluye `no_conformidades: []` anidadas — nunca `null` |
+
+**Nuevos endpoints — Perfil de usuario:**
+
+| Endpoint | Descripción |
+|---|---|
+| `PATCH /usuarios/me` | Edita `nombre` y `telefono` del propio usuario. Ignora rol, cargo y email |
+| `PUT /usuarios/me/foto` | Sube o reemplaza foto de perfil (JPG/PNG/WEBP, máx 2 MB). Almacenada en Cloudinary |
+| `GET /usuarios/me/actividad` | Historial paginado de acciones del usuario autenticado. Retención: 30 días |
+
+**Nuevos endpoints — Notificaciones:**
+
+| Endpoint | Descripción |
+|---|---|
+| `GET /notificaciones/feed` | Feed paginado de eventos de la empresa, del más reciente al más antiguo |
+| `PATCH /notificaciones/{id}/leido` | Marca una notificación como leída |
+| `PATCH /notificaciones/leer-todas` | Marca todas las notificaciones no leídas como leídas |
+
+**Archivos nuevos:**
+
+| Archivo | Descripción |
+|---|---|
+| `app/models/notificacion.py` | Modelo `Notificacion` con tabla `notificaciones` |
+| `app/services/notificacion_service.py` | CRUD de notificaciones, purga automática de 30 días |
+| `app/services/cloudinary_service.py` | Integración con Cloudinary para subir fotos de perfil |
+| `app/routers/notificacion_router.py` | 3 endpoints de notificaciones |
+
+**Archivos modificados:**
+
+| Archivo | Cambio |
+|---|---|
+| `app/models/user.py` | Agrega columnas `telefono` y `foto_url` |
+| `app/models/auditoria.py` | `lazy="selectin"` en relación `no_conformidades` de `Hallazgo` |
+| `app/schemas/usuario_schema.py` | Agrega `PerfilUpdate`; añade `telefono` y `foto_url` a `UsuarioResponse` |
+| `app/schemas/auditoria.py` | Agrega `no_conformidades: List[NoConformidadResponse]` a `HallazgoResponse` |
+| `app/routers/usuario_router.py` | Agrega 3 endpoints de perfil propio |
+| `app/routers/capacitacion_router.py` | Fix de acceso en historial + hooks de notificaciones en 4 endpoints |
+| `app/routers/incidente_router.py` | Hooks de notificaciones en 5 endpoints |
+| `app/routers/riesgo_router.py` | Hook de notificación en `POST /peligros` |
+| `app/routers/auditoria_router.py` | Hooks de notificaciones en 2 endpoints |
+| `app/services/capacitacion_service.py` | `get_historial_empleado` enriquecido con capacitación, evaluación y resultado |
+| `main.py` | Registro de `notificacion_router` |
+| `requirements.txt` | Agrega `cloudinary==1.44.2` |
+
+**Migraciones aplicadas:**
+
+| Migración | Descripción |
+|---|---|
+| `437083986d0b` | Agrega `telefono` y `foto_url` a tabla `users` |
+| `7c80bdc74761` | Crea tabla `notificaciones` |
+
+**Tests:** 207 — sin regresiones
+
+---
 
 ### Sprint 11 — Integración Frontend III: incidentes y chat (207 tests)
 
@@ -930,5 +1041,5 @@ Regex exacto: `[!@#$%^&*(),.?\":{}|<>_\-]`
 
 ---
 
-*Documentación actualizada el 2026-06-04*
+*Documentación actualizada el 2026-06-07*
 *Proyecto PISST — SENA*
