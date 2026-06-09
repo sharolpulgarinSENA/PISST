@@ -22,7 +22,7 @@ from app.schemas.capacitacion import (
     SesionResponse,
     SesionUpdate,
 )
-from app.services import capacitacion_service
+from app.services import capacitacion_service, notificacion_service
 
 router = APIRouter(prefix="/capacitaciones", tags=["Capacitaciones"])
 
@@ -49,7 +49,18 @@ def crear_capacitacion(
     current_user: User = Depends(require_role("sst")),
 ):
     """Crea un nuevo programa de capacitación. Solo el Encargado SST."""
-    return capacitacion_service.create_capacitacion(db, datos, current_user.empresa_id)
+    cap = capacitacion_service.create_capacitacion(db, datos, current_user.empresa_id)
+    notificacion_service.crear_notificacion(
+        db,
+        empresa_id=current_user.empresa_id,
+        tipo="capacitacion_nueva",
+        titulo="Nueva capacitación creada",
+        descripcion=f"{datos.titulo} agregada al plan anual",
+        modulo="capacitaciones",
+        url_destino="/capacitaciones",
+    )
+    db.commit()
+    return cap
 
 
 @router.patch("/{capacitacion_id}", response_model=CapacitacionResponse)
@@ -89,7 +100,18 @@ def crear_sesion(
     current_user: User = Depends(require_role("sst")),
 ):
     """Programa una sesión de capacitación."""
-    return capacitacion_service.create_sesion(db, datos, current_user.empresa_id)
+    sesion = capacitacion_service.create_sesion(db, datos, current_user.empresa_id)
+    notificacion_service.crear_notificacion(
+        db,
+        empresa_id=current_user.empresa_id,
+        tipo="capacitacion_sesion_programada",
+        titulo="Sesión de capacitación programada",
+        descripcion=f"Nueva sesión programada para el {datos.fecha.strftime('%d/%m/%Y')}",
+        modulo="capacitaciones",
+        url_destino="/capacitaciones",
+    )
+    db.commit()
+    return sesion
 
 
 @router.patch("/sesiones/{sesion_id}/estado", response_model=SesionResponse)
@@ -100,9 +122,32 @@ def cambiar_estado_sesion(
     current_user: User = Depends(require_role("sst")),
 ):
     """Cambia el estado de una sesión. Valores: programada, realizada, no_realizada, cancelada."""
-    return capacitacion_service.cambiar_estado_sesion(
+    sesion = capacitacion_service.cambiar_estado_sesion(
         db, sesion_id, current_user.empresa_id, estado
     )
+    tipos_evento = {
+        "realizada": (
+            "capacitacion_sesion_realizada",
+            "Sesión de capacitación realizada",
+        ),
+        "cancelada": (
+            "capacitacion_sesion_cancelada",
+            "Sesión de capacitación cancelada",
+        ),
+    }
+    if estado in tipos_evento:
+        tipo, titulo = tipos_evento[estado]
+        notificacion_service.crear_notificacion(
+            db,
+            empresa_id=current_user.empresa_id,
+            tipo=tipo,
+            titulo=titulo,
+            descripcion=f"La sesión fue marcada como {estado}",
+            modulo="capacitaciones",
+            url_destino="/capacitaciones",
+        )
+        db.commit()
+    return sesion
 
 
 @router.patch("/sesiones/{sesion_id}", response_model=SesionResponse)
@@ -116,9 +161,20 @@ def reprogramar_sesion(
     Reprograma una sesión de capacitación.
     Puede cambiar fecha, lugar o ambos.
     """
-    return capacitacion_service.reprogramar_sesion(
+    sesion = capacitacion_service.reprogramar_sesion(
         db, sesion_id, current_user.empresa_id, datos
     )
+    notificacion_service.crear_notificacion(
+        db,
+        empresa_id=current_user.empresa_id,
+        tipo="capacitacion_sesion_reprogramada",
+        titulo="Sesión de capacitación reprogramada",
+        descripcion="Una sesión fue reprogramada",
+        modulo="capacitaciones",
+        url_destino="/capacitaciones",
+    )
+    db.commit()
+    return sesion
 
 
 @router.get("/{capacitacion_id}/sesiones")

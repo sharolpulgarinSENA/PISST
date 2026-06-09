@@ -18,7 +18,7 @@ from app.schemas.riesgo import (
     PeligroDetailResponse,
     PeligroResponse,
 )
-from app.services import riesgo_service
+from app.services import notificacion_service, riesgo_service
 
 router = APIRouter(prefix="/riesgos", tags=["Evaluación de Riesgos"])
 
@@ -47,7 +47,18 @@ def crear_peligro(
     current_user: User = Depends(require_role("sst")),
 ):
     """Crea una nueva ficha de peligro. Solo el Encargado SST."""
-    return riesgo_service.create_peligro(db, datos, current_user.empresa_id)
+    peligro = riesgo_service.create_peligro(db, datos, current_user.empresa_id)
+    notificacion_service.crear_notificacion(
+        db,
+        empresa_id=current_user.empresa_id,
+        tipo="riesgo_nuevo",
+        titulo="Nuevo peligro identificado",
+        descripcion=f"Se identificó un nuevo peligro: {datos.nombre[:80]}",
+        modulo="riesgos",
+        url_destino="/riesgos",
+    )
+    db.commit()
+    return peligro
 
 
 @router.get("/peligros/{peligro_id}", response_model=PeligroDetailResponse)

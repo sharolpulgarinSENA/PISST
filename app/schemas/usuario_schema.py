@@ -22,12 +22,19 @@ class UsuarioUpdate(BaseModel):
     activo: Optional[bool] = None
 
 
+class PerfilUpdate(BaseModel):
+    nombre: Optional[str] = None
+    telefono: Optional[str] = None
+
+
 class UsuarioResponse(BaseModel):
     id: UUID
     nombre: str
     email: str
     role: str
     activo: bool
+    telefono: Optional[str] = None
+    foto_url: Optional[str] = None
     area_id: Optional[UUID] = None
     cargo_id: Optional[UUID] = None
     area_nombre: Optional[str] = None

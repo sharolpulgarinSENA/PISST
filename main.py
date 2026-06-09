@@ -24,6 +24,7 @@ from app.routers import (
     chat_router,
     incidente_router,
     metricas_router,
+    notificacion_router,
     riesgo_router,
     usuario_router,
 )
@@ -112,6 +113,7 @@ app.include_router(admin_router.router)
 app.include_router(area_router.router)
 app.include_router(cargo_router.router)
 app.include_router(analytics_router.router)
+app.include_router(notificacion_router.router)
 
 
 @app.get("/", tags=["Health"])

@@ -50,6 +50,9 @@ class User(Base):
     refresh_token = Column(String(255), nullable=True)
     refresh_token_expira = Column(DateTime, nullable=True)
 
+    telefono = Column(String(30), nullable=True)
+    foto_url = Column(String(500), nullable=True)
+
     intentos_fallidos = Column(Integer, default=0, nullable=False)
     bloqueado_hasta = Column(DateTime, nullable=True)
     session_token = Column(String(64), nullable=True)

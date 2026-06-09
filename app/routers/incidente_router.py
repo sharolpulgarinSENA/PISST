@@ -20,7 +20,7 @@ from app.schemas.incidente import (
     InvestigacionResponse,
     InvestigacionUpdate,
 )
-from app.services import furat_service, incidente_service
+from app.services import furat_service, incidente_service, notificacion_service
 
 router = APIRouter(prefix="/incidentes", tags=["Incidentes"])
 
@@ -52,9 +52,20 @@ def crear_incidente(
     Crea un nuevo reporte de incidente.
     Accesible para SST y Empleados.
     """
-    return incidente_service.create_incidente(
+    incidente = incidente_service.create_incidente(
         db, datos, current_user.empresa_id, current_user.id
     )
+    notificacion_service.crear_notificacion(
+        db,
+        empresa_id=current_user.empresa_id,
+        tipo="reporte_nuevo",
+        titulo="Nuevo reporte de empleado",
+        descripcion=f"{current_user.nombre} reportó un incidente",
+        modulo="reportes",
+        url_destino=f"/incidentes?reporte={incidente.id}",
+    )
+    db.commit()
+    return incidente
 
 
 @router.get("/{incidente_id}", response_model=IncidenteResponse)
@@ -81,9 +92,20 @@ def cambiar_estado(
     Solo el Encargado SST puede cambiar estados.
     No permite cerrar sin investigación documentada.
     """
-    return incidente_service.update_estado_incidente(
+    incidente = incidente_service.update_estado_incidente(
         db, incidente_id, current_user.empresa_id, datos.estado
     )
+    notificacion_service.crear_notificacion(
+        db,
+        empresa_id=current_user.empresa_id,
+        tipo="reporte_estado_cambio",
+        titulo="Estado de reporte actualizado",
+        descripcion=f"El incidente cambió a estado: {datos.estado}",
+        modulo="reportes",
+        url_destino="/incidentes",
+    )
+    db.commit()
+    return incidente
 
 
 @router.get("/{incidente_id}/progreso")
@@ -141,9 +163,20 @@ def crear_investigacion(
     Crea la investigación de causas de un incidente.
     Solo el Encargado SST puede crear investigaciones.
     """
-    return incidente_service.create_investigacion(
+    investigacion = incidente_service.create_investigacion(
         db, incidente_id, current_user.empresa_id, datos
     )
+    notificacion_service.crear_notificacion(
+        db,
+        empresa_id=current_user.empresa_id,
+        tipo="investigacion_completada",
+        titulo="Investigación de incidente completada",
+        descripcion="Se completó la investigación de causas de un incidente",
+        modulo="incidentes",
+        url_destino="/incidentes",
+    )
+    db.commit()
+    return investigacion
 
 
 # ── Acciones Correctivas ──────────────────────────────────────────
@@ -171,9 +204,20 @@ def crear_accion_correctiva(
     current_user: User = Depends(require_role("sst")),
 ):
     """Crea una acción correctiva para un incidente."""
-    return incidente_service.create_accion_correctiva(
+    accion = incidente_service.create_accion_correctiva(
         db, incidente_id, current_user.empresa_id, datos
     )
+    notificacion_service.crear_notificacion(
+        db,
+        empresa_id=current_user.empresa_id,
+        tipo="accion_correctiva_nueva",
+        titulo="Nueva acción correctiva",
+        descripcion=f"Acción correctiva registrada: {datos.descripcion[:80]}",
+        modulo="incidentes",
+        url_destino="/incidentes",
+    )
+    db.commit()
+    return accion
 
 
 @router.patch("/acciones/{accion_id}", response_model=AccionCorrectivaResponse)
@@ -187,9 +231,21 @@ def actualizar_accion_correctiva(
     Actualiza una acción correctiva.
     No permite cerrarla sin evidencia documentada.
     """
-    return incidente_service.update_accion_correctiva(
+    accion = incidente_service.update_accion_correctiva(
         db, accion_id, current_user.empresa_id, datos
     )
+    if datos.estado == "completada":
+        notificacion_service.crear_notificacion(
+            db,
+            empresa_id=current_user.empresa_id,
+            tipo="accion_correctiva_completada",
+            titulo="Acción correctiva completada",
+            descripcion="Una acción correctiva fue marcada como completada",
+            modulo="incidentes",
+            url_destino="/incidentes",
+        )
+        db.commit()
+    return accion
 
 
 @router.get("/{incidente_id}/furat")

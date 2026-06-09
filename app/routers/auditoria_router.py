@@ -17,7 +17,7 @@ from app.schemas.auditoria import (
     NoConformidadResponse,
     NoConformidadUpdate,
 )
-from app.services import auditoria_service
+from app.services import auditoria_service, notificacion_service
 
 router = APIRouter(prefix="/auditorias", tags=["Auditorías Internas"])
 
@@ -44,7 +44,18 @@ def crear_auditoria(
     current_user: User = Depends(require_role("sst")),
 ):
     """Planifica una nueva auditoría interna. Solo el Encargado SST."""
-    return auditoria_service.create_auditoria(db, datos, current_user.empresa_id)
+    auditoria = auditoria_service.create_auditoria(db, datos, current_user.empresa_id)
+    notificacion_service.crear_notificacion(
+        db,
+        empresa_id=current_user.empresa_id,
+        tipo="auditoria_nueva",
+        titulo="Nueva auditoría planificada",
+        descripcion=f"Auditoría programada para el {datos.fecha_programada.strftime('%d/%m/%Y')}",
+        modulo="auditorias",
+        url_destino="/auditorias",
+    )
+    db.commit()
+    return auditoria
 
 
 @router.patch("/{auditoria_id}/estado", response_model=AuditoriaResponse)
@@ -85,9 +96,20 @@ def crear_hallazgo(
     current_user: User = Depends(require_role("sst")),
 ):
     """Registra un hallazgo durante la ejecución de la auditoría."""
-    return auditoria_service.create_hallazgo(
+    hallazgo = auditoria_service.create_hallazgo(
         db, auditoria_id, current_user.empresa_id, datos
     )
+    notificacion_service.crear_notificacion(
+        db,
+        empresa_id=current_user.empresa_id,
+        tipo="hallazgo_nuevo",
+        titulo="Nuevo hallazgo registrado",
+        descripcion=f"Hallazgo ({datos.clasificacion}): {datos.descripcion[:80]}",
+        modulo="auditorias",
+        url_destino="/auditorias",
+    )
+    db.commit()
+    return hallazgo
 
 
 @router.get("/{auditoria_id}/hallazgos", response_model=List[HallazgoResponse])
