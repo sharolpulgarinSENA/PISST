@@ -71,7 +71,9 @@ class Hallazgo(Base):
     )
 
     auditoria = relationship("Auditoria", back_populates="hallazgos")
-    no_conformidades = relationship("NoConformidad", back_populates="hallazgo")
+    no_conformidades = relationship(
+        "NoConformidad", back_populates="hallazgo", lazy="selectin"
+    )
 
 
 class NoConformidad(Base):

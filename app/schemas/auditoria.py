@@ -1,6 +1,6 @@
 # app/schemas/auditoria.py
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -40,17 +40,6 @@ class HallazgoCreate(BaseModel):
     recomendacion: Optional[str] = None
 
 
-class HallazgoResponse(BaseModel):
-    id: UUID
-    descripcion: str
-    clasificacion: str
-    evidencia: Optional[str]
-    recomendacion: Optional[str]
-    auditoria_id: UUID
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 # ── No Conformidad ────────────────────────────────────────────────
 
 
@@ -73,5 +62,17 @@ class NoConformidadResponse(BaseModel):
     fecha_limite: datetime
     fecha_cierre: Optional[datetime]
     hallazgo_id: UUID
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class HallazgoResponse(BaseModel):
+    id: UUID
+    descripcion: str
+    clasificacion: str
+    evidencia: Optional[str]
+    recomendacion: Optional[str]
+    auditoria_id: UUID
+    no_conformidades: List[NoConformidadResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
