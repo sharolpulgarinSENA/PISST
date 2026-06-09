@@ -1,5 +1,6 @@
 from app.models.accion_correctiva import AccionCorrectiva
 from app.models.area import Area
+from app.models.audit_log import AuditLog
 from app.models.auditoria import Auditoria, Hallazgo, NoConformidad
 from app.models.capacitacion import (
     Asistencia,
