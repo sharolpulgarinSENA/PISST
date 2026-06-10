@@ -1,6 +1,6 @@
 # Documentación Técnica — PISST
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
-**Versión:** 1.7 | **Fecha:** 2026-06-07 | **Estado:** Producción
+**Versión:** 1.8 | **Fecha:** 2026-06-10 | **Estado:** Producción
 
 ---
 
@@ -62,7 +62,7 @@ El sistema implementa **control de acceso basado en roles (RBAC)** con 4 niveles
 - **Frontend:** En producción en Vercel ✅
 - **Base de datos:** Neon PostgreSQL (cloud) ✅
 - **CI/CD:** GitHub Actions ejecutándose en cada push ✅
-- **Tests automáticos:** 207 tests pasando al 100% ✅
+- **Tests automáticos:** 228 tests pasando al 100% ✅
 - **Cobertura de código:** 91% ✅
 
 ---
@@ -185,7 +185,7 @@ El sistema es **multi-tenant por empresa**. Cada entidad del dominio está ligad
 
 | Funcionalidad | Detalle |
 |---|---|
-| Login con JWT | Access token (30 min) + Refresh token (7 días). La respuesta incluye `debe_cambiar_password` para que el frontend redirija sin esperar un 403 |
+| Login con JWT | Access token (30 min) + Refresh token (7 días). La respuesta incluye `id`, `role`, `nombre` y `debe_cambiar_password` para que el frontend no necesite decodificar el JWT |
 | Cambio de contraseña obligatorio | Primer login fuerza cambio de contraseña temporal. El flag aplica a todos los roles creados por el admin (SST, Gerencia) y por el SST (empleados) |
 | Bloqueo por intentos | 5 intentos fallidos → bloqueo 5 minutos |
 | Recuperación de contraseña | Token por correo, expira en 30 minutos |
@@ -243,11 +243,11 @@ borrador → en_revision → abierto → en_investigacion → cerrado
 | Programas de capacitación | Asociados a áreas de la empresa |
 | Sesiones | Programación de fechas y lugar, reprogramación |
 | Asistencia | Registro por empleado (presente/ausente/justificado) |
-| Evaluaciones | Preguntas de opción múltiple con calificación automática |
+| Evaluaciones | Preguntas de opción múltiple con calificación automática. `respuesta_dada` acepta la clave `"a"/"b"/"c"/"d"` o el texto completo de la opción |
 | Certificados PDF | Generación automática al aprobar |
 | Cobertura | Porcentaje del plan anual de capacitaciones cumplido |
 | Filtro por estado | `GET /capacitaciones/` devuelve **todas** por defecto. `?activo=true` solo activas, `?activo=false` solo inactivas |
-| Historial empleado | `GET /capacitaciones/empleados/{id}/historial` — empleado ve su propio historial; SST ve cualquiera. Response incluye nombre de capacitación, fecha de sesión, evaluación completa con preguntas y resultado del empleado |
+| Historial empleado | `GET /capacitaciones/empleados/{id}/historial` — empleado ve su propio historial; SST ve cualquiera. Response incluye nombre de capacitación, fecha de sesión, evaluación con preguntas (`opciones` como `[{"clave": "a", "texto": "..."}]`) y resultado del empleado |
 
 ### 3.5 Auditorías Internas
 
@@ -318,31 +318,40 @@ Módulo de solo lectura que usa **Pandas** y **NumPy** sobre los datos existente
 
 **Endpoints:** `/notificaciones/*`
 
-Feed de eventos de la empresa en tiempo real, diferente a `/metricas/alertas` (alertas son problemas activos; el feed es historial de lo que ocurrió).
+Feed de eventos en tiempo real, segmentado por rol. Diferente a `/metricas/alertas` (alertas son problemas activos; el feed es historial de lo que ocurrió).
 
 | Endpoint | Rol | Descripción |
 |---|---|---|
-| `GET /notificaciones/feed` | Autenticado | Feed paginado de eventos de la empresa, del más reciente al más antiguo |
+| `GET /notificaciones/feed` | Autenticado | Feed paginado del más reciente al más antiguo, filtrado según rol |
 | `PATCH /notificaciones/{id}/leido` | Autenticado | Marca una notificación como leída |
 | `PATCH /notificaciones/leer-todas` | Autenticado | Marca todas las notificaciones no leídas como leídas |
 
+**Segmentación del feed por rol:**
+
+| Rol | Qué ve |
+|---|---|
+| `sst`, `gerencia`, `admin` | Notificaciones de empresa (incidentes, riesgos, auditorías, capacitaciones creadas) |
+| `empleado` | Solo sus notificaciones personales (capacitaciones asignadas) |
+
 **Eventos generados automáticamente:**
 
-| Tipo | Cuándo | url_destino |
-|---|---|---|
-| `reporte_nuevo` | Empleado crea un reporte | `/incidentes?reporte={id}` |
-| `reporte_estado_cambio` | SST cambia estado de un incidente | `/incidentes` |
-| `accion_correctiva_nueva` | SST crea acción correctiva | `/incidentes` |
-| `accion_correctiva_completada` | SST marca acción como completada | `/incidentes` |
-| `investigacion_completada` | SST completa investigación | `/incidentes` |
-| `capacitacion_nueva` | SST crea una capacitación | `/capacitaciones` |
-| `capacitacion_sesion_programada` | SST programa una sesión | `/capacitaciones` |
-| `capacitacion_sesion_realizada` | SST cierra sesión como realizada | `/capacitaciones` |
-| `capacitacion_sesion_cancelada` | SST cancela una sesión | `/capacitaciones` |
-| `capacitacion_sesion_reprogramada` | SST reprograma una sesión | `/capacitaciones` |
-| `riesgo_nuevo` | SST identifica un nuevo peligro | `/riesgos` |
-| `auditoria_nueva` | SST crea una auditoría | `/auditorias` |
-| `hallazgo_nuevo` | SST registra un hallazgo | `/auditorias` |
+| Tipo | Cuándo | Destinatario | url_destino |
+|---|---|---|---|
+| `reporte_nuevo` | Empleado crea un reporte | Empresa | `/incidentes?reporte={id}` |
+| `reporte_estado_cambio` | SST cambia estado de un incidente | Empresa | `/incidentes` |
+| `accion_correctiva_nueva` | SST crea acción correctiva | Empresa | `/incidentes` |
+| `accion_correctiva_completada` | SST marca acción como completada | Empresa | `/incidentes` |
+| `investigacion_completada` | SST completa investigación | Empresa | `/incidentes` |
+| `capacitacion_nueva` | SST crea una capacitación | Empresa | `/capacitaciones` |
+| `capacitacion_sesion_programada` | SST programa una sesión | Empresa | `/capacitaciones` |
+| `capacitacion_sesion_realizada` | SST cierra sesión como realizada | Empresa | `/capacitaciones` |
+| `capacitacion_sesion_cancelada` | SST cancela una sesión | Empresa | `/capacitaciones` |
+| `capacitacion_sesion_reprogramada` | SST reprograma una sesión | Empresa | `/capacitaciones` |
+| `capacitacion_asignada` | SST registra asistencia de empleado | **Personal** | `/capacitaciones/historial` |
+| `riesgo_nuevo` | SST identifica un nuevo peligro | Empresa | `/riesgos` |
+| `auditoria_nueva` | SST crea una auditoría | Empresa | `/auditorias` |
+| `hallazgo_nuevo` | SST registra un hallazgo | Empresa | `/auditorias` |
+| `auditoria_vencida` | Cron diario detecta auditoría sin cerrar | Empresa | `/auditorias` |
 
 **Política de retención:** registros con más de 30 días se eliminan automáticamente en cada consulta al feed.
 
@@ -701,6 +710,58 @@ Todos los errores retornan:
 
 ## 8. Historial de Cambios
 
+### Sprint 13 — Notificaciones personales, cron de vencimiento y fixes Santiago (228 tests)
+
+**Solicitudes de Santiago y Sharon (equipo frontend):**
+
+**Fixes de contrato de API:**
+
+| Cambio | Descripción |
+|---|---|
+| `POST /auth/login` | La respuesta ahora incluye `id: str` (UUID del usuario). El frontend ya no necesita extraerlo decodificando el JWT |
+| `POST /capacitaciones/evaluaciones/responder` | Fix del 500: columna `respuesta_dada` ampliada de `VARCHAR(1)` a `VARCHAR(500)`. La comparación ahora acepta tanto la clave `"a"/"b"/"c"/"d"` como el texto completo de la opción |
+| `GET /capacitaciones/empleados/{id}/historial` | Las opciones de cada pregunta ahora se devuelven como `[{"clave": "a", "texto": "..."}, ...]` en lugar de una lista de strings |
+
+**Notificaciones personales por rol:**
+
+- Modelo `Notificacion` ampliado con campo `usuario_id` (nullable). Notificaciones de empresa tienen `usuario_id=NULL`; notificaciones personales llevan el UUID del destinatario
+- `GET /notificaciones/feed`: SST/Gerencia ven notificaciones de empresa; empleados ven solo las suyas
+- `PATCH /notificaciones/{id}/leido` y `PATCH /notificaciones/leer-todas`: filtran correctamente según rol
+- Nuevo evento `capacitacion_asignada`: cuando el SST registra la asistencia de un empleado, ese empleado recibe una notificación personal automática
+
+**Cron job — auditorías vencidas:**
+
+- `POST /auditorias/verificar-vencidas` (protegido con `X-Admin-Key`): detecta auditorías con `fecha_programada` vencida sin cerrar y NC con `fecha_limite` vencida
+- Cron job diario en Render (6am UTC) llama al endpoint vía `BACKEND_URL` + `ADMIN_SECRET_KEY`
+- Variable de entorno nueva: `BACKEND_URL` (ej: `https://pisst.onrender.com`)
+
+**Archivos modificados:**
+
+| Archivo | Cambio |
+|---|---|
+| `app/models/notificacion.py` | Agrega columna `usuario_id` (FK nullable a `users`) |
+| `app/models/capacitacion.py` | `respuesta_dada` de `String(1)` → `String(500)` |
+| `app/services/notificacion_service.py` | `crear_notificacion` acepta `usuario_id` opcional; `get_feed`, `marcar_leido` y `marcar_todas_leidas` segmentan por rol |
+| `app/services/auditoria_service.py` | Agrega `verificar_auditorias_vencidas` |
+| `app/services/capacitacion_service.py` | Opciones de preguntas con clave; comparación de respuestas acepta texto completo |
+| `app/routers/notificacion_router.py` | Pasa `usuario_id` y `role` al servicio |
+| `app/routers/auditoria_router.py` | Agrega `POST /auditorias/verificar-vencidas` |
+| `app/routers/capacitacion_router.py` | Hook `capacitacion_asignada` en `POST /asistencia` |
+| `app/routers/auth_router.py` | Agrega `id: str` a `LoginResponse` |
+| `app/services/auth_service.py` | Incluye `id` en el dict de retorno del login |
+| `render.yaml` | Agrega cron job `pisst-verificar-vencidas` y variable `BACKEND_URL` |
+
+**Migraciones aplicadas:**
+
+| Migración | Descripción |
+|---|---|
+| `25c610b4119f` | Amplía `respuesta_dada` de `VARCHAR(1)` a `VARCHAR(500)` |
+| `4b8c830edc2c` | Agrega columna `usuario_id` a tabla `notificaciones` |
+
+**Tests:** +21 nuevos (207 → 228) — sin regresiones
+
+---
+
 ### Sprint 12 — Perfil de usuario, notificaciones y fixes de contrato (207 tests)
 
 **Solicitudes de Sharon y Santiago (equipo frontend):**
@@ -1041,5 +1102,5 @@ Regex exacto: `[!@#$%^&*(),.?\":{}|<>_\-]`
 
 ---
 
-*Documentación actualizada el 2026-06-07*
+*Documentación actualizada el 2026-06-10*
 *Proyecto PISST — SENA*
