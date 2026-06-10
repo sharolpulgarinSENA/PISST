@@ -322,26 +322,24 @@ def test_verificar_marca_nc_vencidas(db, empresa):
 # ── POST /auditorias/verificar-vencidas ─────────────────────────────
 
 
-def test_verificar_vencidas_endpoint_ok(client, monkeypatch):
-    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-test")
+def test_verificar_vencidas_endpoint_ok(client, admin_headers):
     resp = client.post(
         "/auditorias/verificar-vencidas",
-        headers={"x-admin-key": "clave-test"},
+        headers=admin_headers,
     )
     assert resp.status_code == 200
     assert "auditorias_vencidas" in resp.json()
     assert "nc_marcadas_vencidas" in resp.json()
 
 
-def test_verificar_vencidas_endpoint_clave_incorrecta(client, monkeypatch):
-    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-test")
+def test_verificar_vencidas_endpoint_token_invalido(client):
     resp = client.post(
         "/auditorias/verificar-vencidas",
-        headers={"x-admin-key": "clave-incorrecta"},
+        headers={"Authorization": "Bearer token_invalido"},
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
-def test_verificar_vencidas_endpoint_sin_header(client):
+def test_verificar_vencidas_endpoint_sin_auth(client):
     resp = client.post("/auditorias/verificar-vencidas")
-    assert resp.status_code == 422
+    assert resp.status_code in (401, 403)

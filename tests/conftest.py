@@ -89,3 +89,34 @@ def usuario_sst(db, empresa):
     db.commit()
     db.refresh(user)
     return user
+
+
+@pytest.fixture
+def usuario_admin(db):
+    import uuid as _uuid
+
+    email = f"admin_{_uuid.uuid4().hex[:8]}@test.com"
+    user = User(
+        nombre="Admin Test",
+        email=email,
+        password_hash=get_password_hash("Admin1!2345"),
+        role=RoleEnum.admin,
+        empresa_id=None,
+        activo=True,
+        debe_cambiar_password=False,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@pytest.fixture
+def admin_headers(usuario_admin):
+    import os
+
+    os.environ.setdefault("SECRET_KEY", "test-secret-key-para-tests-unitarios")
+    from app.core.security import create_access_token
+
+    token = create_access_token({"sub": str(usuario_admin.id)})
+    return {"Authorization": f"Bearer {token}"}

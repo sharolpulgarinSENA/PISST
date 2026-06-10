@@ -1,17 +1,17 @@
 # app/routers/admin_router.py
 import logging
-import os
 import secrets
 import string
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.deps import require_role
 from app.core.security import get_password_hash
 from app.models.empresa import Empresa
 from app.models.user import RoleEnum, User
@@ -29,13 +29,6 @@ def _mask_email(email: str) -> str:
 
 
 router = APIRouter(prefix="/admin", tags=["Administración"])
-
-
-# ── Clave secreta para proteger los endpoints admin ───────────────
-def verificar_clave_admin(x_admin_key: str = Header(...)):
-    clave_correcta = os.getenv("ADMIN_SECRET_KEY")
-    if not clave_correcta or x_admin_key != clave_correcta:
-        raise HTTPException(status_code=403, detail="Clave admin incorrecta")
 
 
 # ── Schemas ───────────────────────────────────────────────────────
@@ -81,7 +74,7 @@ class UsuarioAdminResponse(BaseModel):
 def crear_empresa(
     datos: EmpresaCreate,
     db: Session = Depends(get_db),
-    _: str = Depends(verificar_clave_admin),
+    _: User = Depends(require_role("admin")),
 ):
     """
     Crea una nueva empresa en el sistema.
@@ -105,7 +98,7 @@ def crear_empresa(
 
 @router.get("/empresas", response_model=List[EmpresaListItem])
 def listar_empresas(
-    db: Session = Depends(get_db), _: str = Depends(verificar_clave_admin)
+    db: Session = Depends(get_db), _: User = Depends(require_role("admin"))
 ):
     """
     Lista todas las empresas registradas en el sistema.
@@ -128,7 +121,7 @@ def listar_empresas(
 def crear_usuario_sst(
     datos: SSTCreate,
     db: Session = Depends(get_db),
-    _: str = Depends(verificar_clave_admin),
+    _: User = Depends(require_role("admin")),
 ):
     """
     Crea el primer usuario SST de una empresa.
@@ -194,7 +187,7 @@ def crear_usuario_sst(
 def crear_usuario_gerencia(
     datos: SSTCreate,
     db: Session = Depends(get_db),
-    _: str = Depends(verificar_clave_admin),
+    _: User = Depends(require_role("admin")),
 ):
     """
     Crea un usuario de Gerencia para una empresa.
@@ -256,7 +249,7 @@ def crear_usuario_gerencia(
 @router.post("/limpiar-tokens")
 def limpiar_tokens_caducados(
     db: Session = Depends(get_db),
-    _: str = Depends(verificar_clave_admin),
+    _: User = Depends(require_role("admin")),
 ):
     """
     Limpia refresh tokens y session tokens caducados de todos los usuarios.
