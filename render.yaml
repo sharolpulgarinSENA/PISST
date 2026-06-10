@@ -37,4 +37,27 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
-        
+
+  - type: cron
+    name: pisst-verificar-vencidas
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    schedule: "0 6 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: >
+      python -c "
+      import os, requests;
+      requests.post(
+        os.getenv('BACKEND_URL') + '/auditorias/verificar-vencidas',
+        headers={'x-admin-key': os.getenv('ADMIN_SECRET_KEY')}
+      )
+      "
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_SECRET_KEY
+        sync: false
+      - key: BACKEND_URL
+        sync: false

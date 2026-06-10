@@ -1,8 +1,9 @@
 # app/routers/auditoria_router.py
+import os
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -20,6 +21,21 @@ from app.schemas.auditoria import (
 from app.services import auditoria_service, notificacion_service
 
 router = APIRouter(prefix="/auditorias", tags=["Auditorías Internas"])
+
+
+# ── Cron job: verificar auditorías y NC vencidas ──────────────────
+
+
+@router.post("/verificar-vencidas")
+def verificar_vencidas(
+    x_admin_key: str = Header(...),
+    db: Session = Depends(get_db),
+):
+    """Endpoint para cron job diario. Detecta auditorías y NC vencidas."""
+    clave_correcta = os.getenv("ADMIN_SECRET_KEY")
+    if not clave_correcta or x_admin_key != clave_correcta:
+        raise HTTPException(status_code=403, detail="Clave admin incorrecta")
+    return auditoria_service.verificar_auditorias_vencidas(db)
 
 
 # ── Auditorías ────────────────────────────────────────────────────

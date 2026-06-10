@@ -240,3 +240,101 @@ def test_get_progreso_con_nc_cerrada(db, empresa):
     )
     progreso = auditoria_service.get_progreso_auditoria(db, auditoria.id, empresa.id)
     assert progreso["porcentaje_cierre"] == 100
+
+
+# ── verificar_auditorias_vencidas ───────────────────────────────────
+
+
+def test_verificar_detecta_auditoria_vencida(db, empresa):
+    from datetime import timedelta
+
+    from app.schemas.auditoria import AuditoriaCreate
+
+    datos = AuditoriaCreate(
+        objetivos="Auditoría vencida",
+        fecha_programada=datetime.now(timezone.utc) - timedelta(days=5),
+    )
+    auditoria_service.create_auditoria(db, datos, empresa.id)
+
+    resultado = auditoria_service.verificar_auditorias_vencidas(db)
+    assert resultado["auditorias_vencidas"] >= 1
+
+
+def test_verificar_no_afecta_auditorias_completadas(db, empresa):
+    from datetime import timedelta
+
+    from app.schemas.auditoria import AuditoriaCreate
+
+    # Contar vencidas antes de insertar la auditoría completada
+    antes = auditoria_service.verificar_auditorias_vencidas(db)["auditorias_vencidas"]
+
+    datos = AuditoriaCreate(
+        objetivos="Auditoría ya completada",
+        fecha_programada=datetime.now(timezone.utc) - timedelta(days=3),
+    )
+    auditoria = auditoria_service.create_auditoria(db, datos, empresa.id)
+    auditoria_service.cambiar_estado_auditoria(
+        db, auditoria.id, empresa.id, "completada"
+    )
+
+    despues = auditoria_service.verificar_auditorias_vencidas(db)["auditorias_vencidas"]
+    # La auditoría completada no debe sumar ninguna nueva vencida
+    assert despues == antes
+
+
+def test_verificar_marca_nc_vencidas(db, empresa):
+    from datetime import timedelta
+
+    from app.schemas.auditoria import AuditoriaCreate, NoConformidadCreate
+
+    auditoria = auditoria_service.create_auditoria(
+        db,
+        AuditoriaCreate(
+            objetivos="NC vencida",
+            fecha_programada=datetime(2026, 12, 1, tzinfo=timezone.utc),
+        ),
+        empresa.id,
+    )
+    hallazgo = make_hallazgo(db, auditoria)
+    nc = auditoria_service.create_no_conformidad(
+        db,
+        hallazgo.id,
+        NoConformidadCreate(
+            descripcion="NC con fecha vencida",
+            fecha_limite=datetime.now(timezone.utc) - timedelta(days=2),
+        ),
+    )
+
+    resultado = auditoria_service.verificar_auditorias_vencidas(db)
+    assert resultado["nc_marcadas_vencidas"] >= 1
+
+    db.refresh(nc)
+    assert nc.estado == "vencida"
+
+
+# ── POST /auditorias/verificar-vencidas ─────────────────────────────
+
+
+def test_verificar_vencidas_endpoint_ok(client, monkeypatch):
+    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-test")
+    resp = client.post(
+        "/auditorias/verificar-vencidas",
+        headers={"x-admin-key": "clave-test"},
+    )
+    assert resp.status_code == 200
+    assert "auditorias_vencidas" in resp.json()
+    assert "nc_marcadas_vencidas" in resp.json()
+
+
+def test_verificar_vencidas_endpoint_clave_incorrecta(client, monkeypatch):
+    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-test")
+    resp = client.post(
+        "/auditorias/verificar-vencidas",
+        headers={"x-admin-key": "clave-incorrecta"},
+    )
+    assert resp.status_code == 403
+
+
+def test_verificar_vencidas_endpoint_sin_header(client):
+    resp = client.post("/auditorias/verificar-vencidas")
+    assert resp.status_code == 422

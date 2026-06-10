@@ -5,7 +5,13 @@ from uuid import UUID
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.auditoria import Auditoria, Hallazgo, NoConformidad
+from app.models.auditoria import (
+    Auditoria,
+    EstadoAuditoriaEnum,
+    EstadoNCEnum,
+    Hallazgo,
+    NoConformidad,
+)
 from app.schemas.auditoria import (
     AuditoriaCreate,
     HallazgoCreate,
@@ -132,6 +138,59 @@ def create_no_conformidad(db: Session, hallazgo_id: UUID, datos: NoConformidadCr
     db.commit()
     db.refresh(nc)
     return nc
+
+
+def verificar_auditorias_vencidas(db: Session):
+    """Detecta auditorías vencidas y NC vencidas, crea notificaciones por empresa."""
+    from app.services import notificacion_service
+
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # Auditorías cuya fecha_programada ya pasó y no están cerradas
+    auditorias_vencidas = (
+        db.query(Auditoria)
+        .filter(
+            Auditoria.fecha_programada < ahora,
+            Auditoria.estado.notin_(
+                [EstadoAuditoriaEnum.completada, EstadoAuditoriaEnum.cancelada]
+            ),
+        )
+        .all()
+    )
+
+    empresas_notificadas = set()
+    for auditoria in auditorias_vencidas:
+        if auditoria.empresa_id not in empresas_notificadas:
+            notificacion_service.crear_notificacion(
+                db,
+                empresa_id=auditoria.empresa_id,
+                tipo="auditoria_vencida",
+                titulo="Auditoría vencida sin cerrar",
+                descripcion=f"Auditoría programada para el {auditoria.fecha_programada.strftime('%d/%m/%Y')} no ha sido completada.",
+                modulo="auditorias",
+                url_destino="/auditorias",
+            )
+            empresas_notificadas.add(auditoria.empresa_id)
+
+    # NC cuya fecha_limite ya pasó y siguen abiertas o en proceso
+    ncs_vencidas = (
+        db.query(NoConformidad)
+        .filter(
+            NoConformidad.fecha_limite < ahora,
+            NoConformidad.estado.notin_([EstadoNCEnum.cerrada, EstadoNCEnum.vencida]),
+        )
+        .all()
+    )
+
+    for nc in ncs_vencidas:
+        nc.estado = EstadoNCEnum.vencida
+
+    db.commit()
+
+    return {
+        "auditorias_vencidas": len(auditorias_vencidas),
+        "nc_marcadas_vencidas": len(ncs_vencidas),
+    }
 
 
 def update_no_conformidad(db: Session, nc_id: UUID, datos: NoConformidadUpdate):
