@@ -33,6 +33,7 @@ class LoginResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    id: str
     role: str
     nombre: str
     debe_cambiar_password: bool

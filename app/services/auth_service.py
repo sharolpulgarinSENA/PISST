@@ -109,6 +109,7 @@ async def login(email: str, password: str, recaptcha_token: str, db: Session) ->
     return {
         "access_token": access_token,
         "refresh_token": nuevo_refresh_token,
+        "id": str(user.id),
         "role": user.role.value,
         "nombre": user.nombre,
         "debe_cambiar_password": user.debe_cambiar_password,
