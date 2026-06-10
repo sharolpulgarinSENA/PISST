@@ -144,7 +144,7 @@ class RespuestaEmpleado(Base):
     __tablename__ = "respuestas_empleado"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    respuesta_dada = Column(String(1), nullable=False)
+    respuesta_dada = Column(String(500), nullable=False)
     es_correcta = Column(Boolean, default=False)
     puntaje_final = Column(Integer, default=0)
     aprobado = Column(Boolean, default=False)

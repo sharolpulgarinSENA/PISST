@@ -250,7 +250,12 @@ def get_historial_empleado(db: Session, empleado_id: UUID):
                     {
                         "id": str(p.id),
                         "texto": p.texto,
-                        "opciones": [p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d],
+                        "opciones": [
+                            {"clave": "a", "texto": p.opcion_a},
+                            {"clave": "b", "texto": p.opcion_b},
+                            {"clave": "c", "texto": p.opcion_c},
+                            {"clave": "d", "texto": p.opcion_d},
+                        ],
                     }
                     for p in evaluacion.preguntas
                 ],
@@ -332,7 +337,18 @@ def responder_evaluacion(
         if not pregunta:
             continue
 
-        es_correcta = pregunta.respuesta_correcta == resp.respuesta_dada
+        opciones_map = {
+            "a": pregunta.opcion_a,
+            "b": pregunta.opcion_b,
+            "c": pregunta.opcion_c,
+            "d": pregunta.opcion_d,
+        }
+        texto_correcto = opciones_map.get(pregunta.respuesta_correcta, "")
+        respuesta_norm = resp.respuesta_dada.strip().lower()
+        es_correcta = (
+            respuesta_norm == pregunta.respuesta_correcta
+            or respuesta_norm == texto_correcto.strip().lower()
+        )
         if es_correcta:
             correctas += 1
 
