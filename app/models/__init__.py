@@ -1,4 +1,5 @@
 from app.models.accion_correctiva import AccionCorrectiva
+from app.models.api_key import ApiKey
 from app.models.area import Area
 from app.models.audit_log import AuditLog
 from app.models.auditoria import Auditoria, Hallazgo, NoConformidad

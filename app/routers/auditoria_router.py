@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import require_role
+from app.core.deps import require_admin_or_api_key, require_role
 from app.models.user import User
 from app.schemas.auditoria import (
     AuditoriaCreate,
@@ -28,9 +28,12 @@ router = APIRouter(prefix="/auditorias", tags=["Auditorías Internas"])
 @router.post("/verificar-vencidas")
 def verificar_vencidas(
     db: Session = Depends(get_db),
-    _: User = Depends(require_role("admin")),
+    _=Depends(require_admin_or_api_key),
 ):
-    """Endpoint para cron job diario. Detecta auditorías y NC vencidas."""
+    """
+    Endpoint para cron job diario. Detecta auditorías y NC vencidas.
+    Acepta autenticación via Bearer JWT (role=admin) o header X-API-Key.
+    """
     return auditoria_service.verificar_auditorias_vencidas(db)
 
 
