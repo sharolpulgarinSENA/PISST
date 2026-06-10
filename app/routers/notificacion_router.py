@@ -19,8 +19,15 @@ def feed_notificaciones(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Feed de eventos de la empresa, del más reciente al más antiguo."""
-    return notificacion_service.get_feed(db, current_user.empresa_id, limit, offset)
+    """Feed de notificaciones del usuario autenticado."""
+    return notificacion_service.get_feed(
+        db,
+        current_user.empresa_id,
+        current_user.id,
+        current_user.role.value,
+        limit,
+        offset,
+    )
 
 
 @router.patch("/{notificacion_id}/leido")
@@ -31,7 +38,7 @@ def marcar_leido(
 ):
     """Marca una notificación como leída."""
     resultado = notificacion_service.marcar_leido(
-        db, notificacion_id, current_user.empresa_id
+        db, notificacion_id, current_user.empresa_id, current_user.id
     )
     if not resultado:
         raise HTTPException(status_code=404, detail="Notificación no encontrada")
@@ -44,4 +51,6 @@ def leer_todas(
     current_user: User = Depends(get_current_user),
 ):
     """Marca todas las notificaciones no leídas como leídas."""
-    return notificacion_service.marcar_todas_leidas(db, current_user.empresa_id)
+    return notificacion_service.marcar_todas_leidas(
+        db, current_user.empresa_id, current_user.id, current_user.role.value
+    )

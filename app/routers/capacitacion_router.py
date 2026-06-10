@@ -202,7 +202,19 @@ def registrar_asistencia(
     Registra o actualiza la asistencia de un empleado a una sesión.
     Estados: presente, ausente, justificado.
     """
-    return capacitacion_service.registrar_asistencia(db, datos)
+    asistencia = capacitacion_service.registrar_asistencia(db, datos)
+    notificacion_service.crear_notificacion(
+        db,
+        empresa_id=current_user.empresa_id,
+        tipo="capacitacion_asignada",
+        titulo="Te han asignado a una capacitación",
+        descripcion="Fuiste registrado en una sesión de capacitación. Revisa tu historial.",
+        modulo="capacitaciones",
+        url_destino="/capacitaciones/historial",
+        usuario_id=datos.empleado_id,
+    )
+    db.commit()
+    return asistencia
 
 
 @router.get("/sesiones/{sesion_id}/asistencia", response_model=list[AsistenciaResponse])
