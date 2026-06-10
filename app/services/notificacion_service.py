@@ -1,5 +1,6 @@
 # app/services/notificacion_service.py
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -15,10 +16,12 @@ def crear_notificacion(
     descripcion: str,
     modulo: str,
     url_destino: str,
+    usuario_id: Optional[UUID] = None,
 ) -> None:
     _purgar_antiguos(db, empresa_id)
     notif = Notificacion(
         empresa_id=empresa_id,
+        usuario_id=usuario_id,
         tipo=tipo,
         titulo=titulo,
         descripcion=descripcion,
@@ -28,17 +31,34 @@ def crear_notificacion(
     db.add(notif)
 
 
-def get_feed(db: Session, empresa_id: UUID, limit: int, offset: int) -> dict:
+def get_feed(
+    db: Session,
+    empresa_id: UUID,
+    usuario_id: UUID,
+    role: str,
+    limit: int,
+    offset: int,
+) -> dict:
     _purgar_antiguos(db, empresa_id)
-    total = db.query(Notificacion).filter(Notificacion.empresa_id == empresa_id).count()
+
+    # SST y gerencia ven notificaciones de empresa (usuario_id IS NULL)
+    # Empleados ven solo sus notificaciones personales (usuario_id = su id)
+    if role in ("sst", "gerencia", "admin"):
+        query = db.query(Notificacion).filter(
+            Notificacion.empresa_id == empresa_id,
+            Notificacion.usuario_id == None,  # noqa: E711
+        )
+    else:
+        query = db.query(Notificacion).filter(
+            Notificacion.empresa_id == empresa_id,
+            Notificacion.usuario_id == usuario_id,
+        )
+
+    total = query.count()
     eventos = (
-        db.query(Notificacion)
-        .filter(Notificacion.empresa_id == empresa_id)
-        .order_by(Notificacion.fecha.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
+        query.order_by(Notificacion.fecha.desc()).offset(offset).limit(limit).all()
     )
+
     return {
         "total": total,
         "eventos": [
@@ -57,7 +77,9 @@ def get_feed(db: Session, empresa_id: UUID, limit: int, offset: int) -> dict:
     }
 
 
-def marcar_leido(db: Session, notificacion_id: UUID, empresa_id: UUID) -> dict:
+def marcar_leido(
+    db: Session, notificacion_id: UUID, empresa_id: UUID, usuario_id: UUID
+) -> dict:
     notif = (
         db.query(Notificacion)
         .filter(
@@ -68,21 +90,31 @@ def marcar_leido(db: Session, notificacion_id: UUID, empresa_id: UUID) -> dict:
     )
     if not notif:
         return None
+    # Solo el dueño puede marcar su notificación personal como leída
+    if notif.usuario_id is not None and notif.usuario_id != usuario_id:
+        return None
     notif.leido = True
     db.commit()
     db.refresh(notif)
     return {"id": str(notif.id), "leido": notif.leido}
 
 
-def marcar_todas_leidas(db: Session, empresa_id: UUID) -> dict:
-    actualizadas = (
-        db.query(Notificacion)
-        .filter(
+def marcar_todas_leidas(
+    db: Session, empresa_id: UUID, usuario_id: UUID, role: str
+) -> dict:
+    if role in ("sst", "gerencia", "admin"):
+        query = db.query(Notificacion).filter(
             Notificacion.empresa_id == empresa_id,
-            Notificacion.leido == False,
+            Notificacion.usuario_id == None,  # noqa: E711
+            Notificacion.leido == False,  # noqa: E712
         )
-        .update({"leido": True})
-    )
+    else:
+        query = db.query(Notificacion).filter(
+            Notificacion.empresa_id == empresa_id,
+            Notificacion.usuario_id == usuario_id,
+            Notificacion.leido == False,  # noqa: E712
+        )
+    actualizadas = query.update({"leido": True})
     db.commit()
     return {"actualizadas": actualizadas}
 
