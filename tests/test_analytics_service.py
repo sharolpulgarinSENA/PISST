@@ -109,7 +109,7 @@ def make_asistencia(db, sesion, empleado, estado="presente"):
     return a
 
 
-def make_respuesta_empleado(db, evaluacion, empleado, aprobado=True):
+def make_respuesta_empleado(db, evaluacion, empleado, empresa_id, aprobado=True):
     from app.schemas.capacitacion import ResponderEvaluacionRequest, RespuestaCreate
     from app.services import capacitacion_service
 
@@ -121,7 +121,9 @@ def make_respuesta_empleado(db, evaluacion, empleado, aprobado=True):
             RespuestaCreate(pregunta_id=pregunta.id, respuesta_dada=respuesta_correcta)
         ],
     )
-    return capacitacion_service.responder_evaluacion(db, request, empleado.id)
+    return capacitacion_service.responder_evaluacion(
+        db, request, empleado.id, empresa_id
+    )
 
 
 # ── analizar_incidentes ──────────────────────────────────────────────
@@ -256,7 +258,7 @@ def test_analytics_capacitaciones_aprobacion(db, empresa, usuario_sst):
         ),
     )
 
-    make_respuesta_empleado(db, ev, usuario_sst, aprobado=True)
+    make_respuesta_empleado(db, ev, usuario_sst, empresa.id, aprobado=True)
 
     resultado = analytics_service.analizar_capacitaciones(db, empresa.id)
     assert resultado["total_evaluaciones"] >= 1

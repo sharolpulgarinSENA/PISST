@@ -213,7 +213,15 @@ def update_accion_correctiva(
     Actualiza una acción correctiva.
     No permite cerrarla sin evidencia documentada.
     """
-    accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
+    accion = (
+        db.query(AccionCorrectiva)
+        .join(AccionCorrectiva.incidente)
+        .filter(
+            AccionCorrectiva.id == accion_id,
+            Incidente.empresa_id == empresa_id,
+        )
+        .first()
+    )
 
     if not accion:
         raise HTTPException(status_code=404, detail="Acción correctiva no encontrada")

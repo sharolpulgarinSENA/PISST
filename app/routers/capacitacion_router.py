@@ -202,7 +202,9 @@ def registrar_asistencia(
     Registra o actualiza la asistencia de un empleado a una sesión.
     Estados: presente, ausente, justificado.
     """
-    asistencia = capacitacion_service.registrar_asistencia(db, datos)
+    asistencia = capacitacion_service.registrar_asistencia(
+        db, datos, current_user.empresa_id
+    )
     notificacion_service.crear_notificacion(
         db,
         empresa_id=current_user.empresa_id,
@@ -224,7 +226,9 @@ def asistencia_por_sesion(
     current_user: User = Depends(require_role("sst")),
 ):
     """Lista la asistencia de todos los empleados en una sesión."""
-    return capacitacion_service.get_asistencia_by_sesion(db, sesion_id)
+    return capacitacion_service.get_asistencia_by_sesion(
+        db, sesion_id, current_user.empresa_id
+    )
 
 
 @router.get("/empleados/{empleado_id}/historial")
@@ -236,7 +240,9 @@ def historial_empleado(
     """Retorna el historial de capacitaciones de un empleado."""
     if current_user.role == RoleEnum.empleado and current_user.id != empleado_id:
         raise HTTPException(status_code=403, detail="No autorizado.")
-    return capacitacion_service.get_historial_empleado(db, empleado_id)
+    return capacitacion_service.get_historial_empleado(
+        db, empleado_id, current_user.empresa_id
+    )
 
 
 # ── Evaluaciones ──────────────────────────────────────────────────
@@ -262,7 +268,9 @@ def responder_evaluacion(
     El empleado responde la evaluación.
     El sistema calcula automáticamente el puntaje y si aprobó.
     """
-    return capacitacion_service.responder_evaluacion(db, datos, current_user.id)
+    return capacitacion_service.responder_evaluacion(
+        db, datos, current_user.id, current_user.empresa_id
+    )
 
 
 # ── Certificados ──────────────────────────────────────────────────
@@ -280,6 +288,24 @@ def descargar_certificado(
     Solo disponible si el empleado aprobó.
     """
     from fastapi.responses import StreamingResponse
+
+    from app.models.user import User as UserModel
+
+    # Empleado solo puede descargar su propio certificado
+    if current_user.role == RoleEnum.empleado and current_user.id != empleado_id:
+        raise HTTPException(status_code=403, detail="No autorizado.")
+
+    # Verificar que el empleado pertenece a la misma empresa
+    empleado = (
+        db.query(UserModel)
+        .filter(
+            UserModel.id == empleado_id,
+            UserModel.empresa_id == current_user.empresa_id,
+        )
+        .first()
+    )
+    if not empleado:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
     buffer = capacitacion_service.generar_certificado(db, evaluacion_id, empleado_id)
 

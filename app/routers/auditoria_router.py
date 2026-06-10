@@ -153,7 +153,9 @@ def crear_no_conformidad(
     current_user: User = Depends(require_role("sst")),
 ):
     """Crea una no conformidad a partir de un hallazgo."""
-    return auditoria_service.create_no_conformidad(db, hallazgo_id, datos)
+    return auditoria_service.create_no_conformidad(
+        db, hallazgo_id, datos, current_user.empresa_id
+    )
 
 
 @router.patch("/nc/{nc_id}", response_model=NoConformidadResponse)
@@ -164,4 +166,6 @@ def actualizar_no_conformidad(
     current_user: User = Depends(require_role("sst")),
 ):
     """Actualiza el estado de una NC. No cierra sin evidencia."""
-    return auditoria_service.update_no_conformidad(db, nc_id, datos)
+    return auditoria_service.update_no_conformidad(
+        db, nc_id, datos, current_user.empresa_id
+    )
