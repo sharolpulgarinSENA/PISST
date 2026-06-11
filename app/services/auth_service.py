@@ -251,6 +251,46 @@ def refrescar_token(refresh_token: str, db: Session) -> dict:
     return {"access_token": nuevo_access_token, "token_type": "bearer"}
 
 
+def crear_reset_token(usuario_id, db: Session) -> str:
+    from app.models.reset_token import ResetToken
+
+    token = secrets.token_hex(32)  # 64 caracteres hex
+    expira = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=24)
+    rt = ResetToken(usuario_id=usuario_id, token=token, expira_en=expira)
+    db.add(rt)
+    db.commit()
+    return token
+
+
+def verificar_reset_token(token: str, db: Session):
+    from app.models.reset_token import ResetToken
+
+    rt = db.query(ResetToken).filter(ResetToken.token == token).first()
+    if not rt:
+        raise HTTPException(status_code=400, detail="Token inválido")
+    if rt.usado:
+        raise HTTPException(status_code=400, detail="Token ya utilizado")
+    if rt.expira_en < datetime.now(timezone.utc).replace(tzinfo=None):
+        raise HTTPException(status_code=400, detail="Token expirado")
+    return rt
+
+
+def usar_reset_token(token: str, nueva_password: str, db: Session) -> dict:
+    rt = verificar_reset_token(token, db)
+
+    validar_fortaleza_password(nueva_password)
+
+    user = db.query(User).filter(User.id == rt.usuario_id, User.activo == True).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    user.password_hash = get_password_hash(nueva_password)
+    user.debe_cambiar_password = False
+    rt.usado = True
+    db.commit()
+    return {"mensaje": "Contraseña actualizada exitosamente"}
+
+
 def logout(refresh_token: str, db: Session) -> dict:
     user = (
         db.query(User)

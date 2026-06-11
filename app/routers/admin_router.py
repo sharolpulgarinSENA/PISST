@@ -15,7 +15,10 @@ from app.core.deps import require_role
 from app.core.security import get_password_hash
 from app.models.empresa import Empresa
 from app.models.user import RoleEnum, User
-from app.services.email_service import enviar_correo_bienvenida
+from app.services.email_service import (
+    enviar_correo_bienvenida,
+    enviar_correo_reset_admin,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -244,6 +247,35 @@ def crear_usuario_gerencia(
         "email": nuevo_gerencia.email,
         "empresa": empresa.nombre,
     }
+
+
+@router.post("/usuarios/{usuario_id}/reset-password")
+def reset_password_usuario(
+    usuario_id: UUID,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role("admin")),
+):
+    """
+    Genera un token de reset y envía el enlace por email al usuario.
+    No envía contraseña — el usuario establece la suya al hacer clic.
+    """
+    from app.services.auth_service import crear_reset_token
+
+    user = db.query(User).filter(User.id == usuario_id, User.activo == True).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    token = crear_reset_token(user.id, db)
+
+    enviado = enviar_correo_reset_admin(
+        email_destino=user.email,
+        nombre=user.nombre,
+        token=token,
+    )
+    if not enviado:
+        logger.warning(f"Correo reset no enviado a {_mask_email(user.email)}")
+
+    return {"mensaje": "Enlace de reset enviado", "usuario_id": str(user.id)}
 
 
 @router.post("/limpiar-tokens")

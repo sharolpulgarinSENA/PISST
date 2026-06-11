@@ -121,6 +121,11 @@ def forgot_password(datos: ForgotPasswordRequest, db: Session = Depends(get_db))
 
 @router.post("/reset-password")
 def reset_password(datos: ResetPasswordRequest, db: Session = Depends(get_db)):
+    from app.models.reset_token import ResetToken
+
+    rt = db.query(ResetToken).filter(ResetToken.token == datos.token).first()
+    if rt:
+        return auth_service.usar_reset_token(datos.token, datos.new_password, db)
     return auth_service.resetear_password(datos.token, datos.new_password, db)
 
 

@@ -144,6 +144,55 @@ def enviar_escalar_coordinador(
         return False
 
 
+def enviar_correo_reset_admin(email_destino: str, nombre: str, token: str) -> bool:
+    enlace = f"{FRONTEND_URL}/reset-password?token={token}"
+
+    payload = {
+        "from": f"PISST <{FROM_EMAIL}>",
+        "to": [email_destino],
+        "subject": "Acceso a PISST — Establece tu contraseña",
+        "html": f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
+          <h1 style="color: #1E3A5F;">PISST</h1>
+          <p style="color: #666; font-size: 13px;">Plataforma Integral de Seguridad y Salud en el Trabajo</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+          <h2 style="color: #1E3A5F;">Hola, {nombre}</h2>
+          <p style="color: #444; font-size: 15px; line-height: 1.6;">
+            Un administrador ha generado un enlace para que establezcas tu contraseña en PISST.
+          </p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="{enlace}" style="background-color: #1d4ed8; color: white; padding: 14px 32px;
+               text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: bold; display: inline-block;">
+              Establecer contraseña
+            </a>
+          </div>
+          <p style="color: #666; font-size: 13px;">Este enlace expira en <strong>24 horas</strong>.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="color: #999; font-size: 12px; text-align: center;">PISST — Este es un correo automático.</p>
+        </div>
+        """,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = httpx.post(
+            RESEND_API_URL, json=payload, headers=headers, timeout=10.0
+        )
+        if response.status_code in [200, 201]:
+            logger.info(f"Correo reset admin enviado. ID: {response.json().get('id')}")
+            return True
+        else:
+            logger.error(f"Error {response.status_code}: {response.text}")
+            return False
+    except Exception as e:
+        logger.error(f"Excepción al enviar correo reset admin: {str(e)}")
+        return False
+
+
 def enviar_correo_bienvenida(
     email_destino: str, nombre: str, password_temporal: str
 ) -> bool:

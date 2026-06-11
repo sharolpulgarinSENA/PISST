@@ -12,6 +12,7 @@ from app.models.empresa import Empresa
 from app.models.notificacion import (  # noqa: F401 — registra tabla en metadata
     Notificacion,
 )
+from app.models.reset_token import ResetToken  # noqa: F401 — registra tabla en metadata
 from app.models.user import RoleEnum, User
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test.db"

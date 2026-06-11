@@ -291,6 +291,62 @@ def test_logout_token_inexistente(db):
     assert resultado["mensaje"] == "Sesión cerrada exitosamente"
 
 
+# ── reset_token (admin flow) ────────────────────────────────────────
+
+
+def test_crear_reset_token(db, empresa):
+    user = make_user(db, empresa)
+    token = auth_service.crear_reset_token(user.id, db)
+    assert len(token) == 64
+    assert all(c in "0123456789abcdef" for c in token)
+
+
+def test_verificar_reset_token_valido(db, empresa):
+    user = make_user(db, empresa)
+    token = auth_service.crear_reset_token(user.id, db)
+    rt = auth_service.verificar_reset_token(token, db)
+    assert str(rt.usuario_id) == str(user.id)
+    assert rt.usado is False
+
+
+def test_reset_token_expirado(db, empresa):
+    from fastapi import HTTPException
+
+    from app.models.reset_token import ResetToken
+
+    user = make_user(db, empresa)
+    token = auth_service.crear_reset_token(user.id, db)
+    rt = db.query(ResetToken).filter(ResetToken.token == token).first()
+    rt.expira_en = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1)
+    db.commit()
+    with pytest.raises(HTTPException) as exc:
+        auth_service.verificar_reset_token(token, db)
+    assert exc.value.status_code == 400
+
+
+def test_reset_token_ya_usado(db, empresa):
+    from fastapi import HTTPException
+
+    user = make_user(db, empresa)
+    token = auth_service.crear_reset_token(user.id, db)
+    auth_service.usar_reset_token(token, "NuevaClave3!", db)
+    with pytest.raises(HTTPException) as exc:
+        auth_service.usar_reset_token(token, "OtraClave3!", db)
+    assert exc.value.status_code == 400
+
+
+def test_cambiar_password_con_token(db, empresa):
+    from app.models.reset_token import ResetToken
+
+    user = make_user(db, empresa)
+    token = auth_service.crear_reset_token(user.id, db)
+    resultado = auth_service.usar_reset_token(token, "NuevaClave3!", db)
+    assert resultado["mensaje"] == "Contraseña actualizada exitosamente"
+    db.expire_all()
+    rt = db.query(ResetToken).filter(ResetToken.token == token).first()
+    assert rt.usado is True
+
+
 # ── solicitar_reset / resetear_password ─────────────────────────────
 
 

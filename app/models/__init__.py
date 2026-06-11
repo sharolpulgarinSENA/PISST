@@ -18,6 +18,7 @@ from app.models.incidente import Incidente
 from app.models.investigacion import Investigacion
 from app.models.lesion import Lesion
 from app.models.notificacion import Notificacion
+from app.models.reset_token import ResetToken
 from app.models.riesgo import EvaluacionRiesgo, MedidaControl, Peligro
 from app.models.testigo import Testigo
 from app.models.user import User
