@@ -1,4 +1,4 @@
-"""add telefono foto_url to users
+"""allow null on sesiones_capacitacion.estado
 
 Revision ID: 318f5a54c35c
 Revises: a1b2c3d4e5f6

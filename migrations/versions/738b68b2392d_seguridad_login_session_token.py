@@ -1,7 +1,7 @@
 """seguridad_login_session_token
 
 Revision ID: 738b68b2392d
-Revises: 116df49d1acf
+Revises: 8d37122972c7
 Create Date: 2026-05-20 06:16:59.484718
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "738b68b2392d"
-down_revision: Union[str, Sequence[str], None] = "116df49d1acf"
+down_revision: Union[str, Sequence[str], None] = "8d37122972c7"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
