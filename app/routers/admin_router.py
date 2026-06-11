@@ -39,6 +39,9 @@ class EmpresaCreate(BaseModel):
     nombre: str
     nit: str
     sector: Optional[str] = None
+    ciudad: Optional[str] = None
+    direccion: Optional[str] = None
+    telefono: Optional[str] = None
 
 
 class SSTCreate(BaseModel):
@@ -86,7 +89,14 @@ def crear_empresa(
     if db.query(Empresa).filter(Empresa.nit == datos.nit).first():
         raise HTTPException(status_code=400, detail="Ya existe una empresa con ese NIT")
 
-    empresa = Empresa(nombre=datos.nombre, nit=datos.nit, sector=datos.sector)
+    empresa = Empresa(
+        nombre=datos.nombre,
+        nit=datos.nit,
+        sector=datos.sector,
+        ciudad=datos.ciudad,
+        direccion=datos.direccion,
+        telefono=datos.telefono,
+    )
     db.add(empresa)
     db.commit()
     db.refresh(empresa)
