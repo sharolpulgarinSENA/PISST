@@ -223,6 +223,8 @@ def cambiar_password(
 
 
 def refrescar_token(refresh_token: str, db: Session) -> dict:
+    from app.models.empresa import Empresa
+
     user = (
         db.query(User)
         .filter(User.refresh_token == refresh_token, User.activo == True)
@@ -236,6 +238,11 @@ def refrescar_token(refresh_token: str, db: Session) -> dict:
         timezone.utc
     ).replace(tzinfo=None):
         raise HTTPException(status_code=401, detail="Refresh token expirado")
+
+    if user.empresa_id:
+        empresa = db.query(Empresa).filter(Empresa.id == user.empresa_id).first()
+        if not empresa or not empresa.activo:
+            raise HTTPException(status_code=401, detail="Empresa desactivada")
 
     nuevo_access_token = create_access_token(
         {"sub": str(user.id), "role": user.role.value, "sid": str(user.session_token)}

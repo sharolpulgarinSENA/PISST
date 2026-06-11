@@ -223,6 +223,54 @@ def test_refrescar_token_expirado(db, empresa):
     assert exc.value.status_code == 401
 
 
+def test_refrescar_token_usuario_inactivo(db, empresa):
+    from fastapi import HTTPException
+
+    refresh = secrets.token_hex(40)
+    expira = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
+    make_user(
+        db, empresa, refresh_token=refresh, refresh_token_expira=expira, activo=False
+    )
+    with pytest.raises(HTTPException) as exc:
+        auth_service.refrescar_token(refresh, db)
+    assert exc.value.status_code == 401
+
+
+def test_refrescar_token_empresa_inactiva(db, empresa):
+    from fastapi import HTTPException
+
+    empresa.activo = False
+    db.commit()
+
+    refresh = secrets.token_hex(40)
+    expira = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
+    make_user(db, empresa, refresh_token=refresh, refresh_token_expira=expira)
+    with pytest.raises(HTTPException) as exc:
+        auth_service.refrescar_token(refresh, db)
+    assert exc.value.status_code == 401
+    assert "empresa" in exc.value.detail.lower()
+
+
+def test_refrescar_token_usuario_eliminado(db):
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc:
+        auth_service.refrescar_token("refresh-token-de-usuario-inexistente", db)
+    assert exc.value.status_code == 401
+
+
+def test_refrescar_token_max_age_7_dias(db, empresa):
+    from fastapi import HTTPException
+
+    refresh = secrets.token_hex(40)
+    # Expiró hace 1 segundo (justo pasaron los 7 días del login original)
+    expira = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=1)
+    make_user(db, empresa, refresh_token=refresh, refresh_token_expira=expira)
+    with pytest.raises(HTTPException) as exc:
+        auth_service.refrescar_token(refresh, db)
+    assert exc.value.status_code == 401
+
+
 # ── logout ──────────────────────────────────────────────────────────
 
 
