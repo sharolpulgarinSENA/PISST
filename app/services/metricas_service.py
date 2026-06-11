@@ -172,49 +172,51 @@ def get_alertas(db: Session, empresa_id: UUID):
             }
         )
 
-    acciones_vencidas = (
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    _query_vencidas = (
         db.query(AccionCorrectiva)
         .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)
         .filter(
             Incidente.empresa_id == empresa_id,
             AccionCorrectiva.estado != EstadoAccionEnum.completada,
-            AccionCorrectiva.fecha_limite
-            < datetime.now(timezone.utc).replace(tzinfo=None),
+            AccionCorrectiva.fecha_limite < ahora,
         )
-        .count()
     )
+    acciones_vencidas = _query_vencidas.count()
 
     if acciones_vencidas > 0:
+        primera = _query_vencidas.first()
         alertas.append(
             {
                 "tipo": "accion_correctiva_vencida",
                 "nivel": "critico",
                 "mensaje": f"{acciones_vencidas} acción(es) correctiva(s) vencida(s)",
-                "url_destino": "/acciones-correctivas",
+                "url_destino": f"/incidentes?reporte={primera.incidente_id}",
             }
         )
 
-    proxima_semana = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
-    acciones_proximas = (
+    proxima_semana = ahora + timedelta(days=7)
+    _query_proximas = (
         db.query(AccionCorrectiva)
         .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)
         .filter(
             Incidente.empresa_id == empresa_id,
             AccionCorrectiva.estado != EstadoAccionEnum.completada,
-            AccionCorrectiva.fecha_limite
-            >= datetime.now(timezone.utc).replace(tzinfo=None),
+            AccionCorrectiva.fecha_limite >= ahora,
             AccionCorrectiva.fecha_limite <= proxima_semana,
         )
-        .count()
     )
+    acciones_proximas = _query_proximas.count()
 
     if acciones_proximas > 0:
+        primera_proxima = _query_proximas.first()
         alertas.append(
             {
                 "tipo": "accion_correctiva_proxima",
                 "nivel": "medio",
                 "mensaje": f"{acciones_proximas} acción(es) correctiva(s) vence(n) en los próximos 7 días",
-                "url_destino": "/acciones-correctivas",
+                "url_destino": f"/incidentes?reporte={primera_proxima.incidente_id}",
             }
         )
 
