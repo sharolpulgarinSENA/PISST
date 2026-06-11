@@ -5,12 +5,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from app.models.riesgo import EstadoControlEnum, TipoControlEnum, TipoPeligroEnum
+
 # ── Peligro ───────────────────────────────────────────────────────
 
 
 class PeligroCreate(BaseModel):
     descripcion: str
-    tipo: str  # fisico, quimico, biologico, ergonomico, etc.
+    tipo: TipoPeligroEnum
     actividad: Optional[str] = None
     trabajadores_expuestos: Optional[int] = 0
     area_id: Optional[UUID] = None
@@ -55,13 +57,13 @@ class EvaluacionRiesgoResponse(BaseModel):
 
 class MedidaControlCreate(BaseModel):
     descripcion: str
-    tipo: str  # eliminacion, sustitucion, ingenieria, administrativo, epp
+    tipo: TipoControlEnum
     fecha_limite: Optional[datetime] = None
     responsable_id: Optional[UUID] = None
 
 
 class MedidaControlUpdate(BaseModel):
-    estado: Optional[str] = None
+    estado: Optional[EstadoControlEnum] = None
     evidencia: Optional[str] = None
     descripcion: Optional[str] = None
 
