@@ -36,6 +36,14 @@ RETENCION_DIAS = 30
 # ── Endpoints perfil propio (definidos ANTES que /{usuario_id}) ───
 
 
+@router.get("/me", response_model=UsuarioResponse)
+def obtener_mi_perfil(
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna los datos del usuario autenticado."""
+    return current_user
+
+
 @router.patch("/me", response_model=UsuarioResponse)
 def actualizar_mi_perfil(
     datos: PerfilUpdate,
@@ -47,6 +55,15 @@ def actualizar_mi_perfil(
         current_user.nombre = datos.nombre
     if datos.telefono is not None:
         current_user.telefono = datos.telefono
+    db.add(
+        AuditLog(
+            user_id=current_user.id,
+            accion="actualizar_perfil",
+            entidad="usuarios",
+            entidad_id=str(current_user.id),
+            detalle="El usuario actualizó su nombre o teléfono",
+        )
+    )
     db.commit()
     db.refresh(current_user)
     return current_user
@@ -76,6 +93,15 @@ async def actualizar_foto_perfil(
         raise HTTPException(status_code=500, detail="Error al subir la imagen")
 
     current_user.foto_url = url
+    db.add(
+        AuditLog(
+            user_id=current_user.id,
+            accion="actualizar_foto",
+            entidad="usuarios",
+            entidad_id=str(current_user.id),
+            detalle="El usuario actualizó su foto de perfil",
+        )
+    )
     db.commit()
     return {"foto_url": url}
 
