@@ -1,6 +1,6 @@
 # Documentación Técnica — PISST
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
-**Versión:** 1.8 | **Fecha:** 2026-06-10 | **Estado:** Producción
+**Versión:** 1.9 | **Fecha:** 2026-06-10 | **Estado:** Producción
 
 ---
 
@@ -62,7 +62,7 @@ El sistema implementa **control de acceso basado en roles (RBAC)** con 4 niveles
 - **Frontend:** En producción en Vercel ✅
 - **Base de datos:** Neon PostgreSQL (cloud) ✅
 - **CI/CD:** GitHub Actions ejecutándose en cada push ✅
-- **Tests automáticos:** 228 tests pasando al 100% ✅
+- **Tests automáticos:** 308 tests pasando al 100% ✅
 - **Cobertura de código:** 91% ✅
 
 ---
@@ -297,20 +297,21 @@ planificada → en_ejecucion → completada
 
 **Endpoints:** `/analytics/*`
 
-Módulo de solo lectura que usa **Pandas** y **NumPy** sobre los datos existentes para generar KPIs avanzados y alertas. No toca ningún servicio existente ni escribe en la BD.
+Módulo de solo lectura. Usa **agregaciones SQL** (`func.count`, `GROUP BY`, `joinedload`) para máximo rendimiento. Pandas se conserva únicamente para el cálculo de tendencia mensual (requiere operaciones de periodo de fecha). No toca ningún servicio existente ni escribe en la BD.
 
-| Endpoint | Rol | Qué devuelve |
-|---|---|---|
-| `GET /analytics/incidentes` | sst, gerencia | Distribución por tipo y severidad, tasa mensual promedio, tendencia (aumento/baja/estable) |
-| `GET /analytics/riesgos` | sst, gerencia | Distribución por nivel (bajo/medio/alto/crítico), % con medidas implementadas, peligros críticos sin control |
-| `GET /analytics/capacitaciones` | sst, gerencia | Tasa de aprobación global, asistencia promedio, alertas de empleados con asistencia < 80%, capacitaciones sin sesión realizada |
-| `GET /analytics/cumplimiento` | sst, gerencia | Score SG-SST (0–100) y desglose por módulo: incidentes investigados, peligros con control, capacitaciones realizadas, NC cerradas |
+| Endpoint | Rol | Parámetros | Qué devuelve |
+|---|---|---|---|
+| `GET /analytics/incidentes` | sst, gerencia | `limit` (≤1000), `offset`, `fecha_desde`, `fecha_hasta` | Distribución por tipo y severidad, tasa mensual promedio, tendencia (aumento/baja/estable) |
+| `GET /analytics/riesgos` | sst, gerencia | `limit` (≤1000), `offset` | Distribución por nivel (bajo/medio/alto/crítico), % con medidas implementadas, peligros críticos sin control |
+| `GET /analytics/capacitaciones` | sst, gerencia | `limit` (≤1000), `offset`, `fecha_desde`, `fecha_hasta` | Tasa de aprobación global, asistencia promedio, alertas de empleados con asistencia < 80%, capacitaciones sin sesión realizada |
+| `GET /analytics/cumplimiento` | sst, gerencia | — | Score SG-SST (0–100) y desglose por módulo: incidentes investigados, peligros con control, capacitaciones realizadas, NC cerradas |
 
 **Principios del módulo:**
 - Estrictamente de solo lectura (`db.query()` únicamente — nunca `db.add/commit/delete`)
 - Multi-tenant: toda query filtra por `empresa_id` del usuario autenticado
 - No invasivo: un error en analytics no afecta el backend principal
 - Reutiliza el mismo JWT/RBAC del resto del proyecto
+- Paginación protegida: `limit` máximo 1000 — valores mayores retornan 422
 
 ---
 
@@ -391,7 +392,6 @@ Protegidos con `X-Admin-Key` en el header.
 | PDF | ReportLab | 4.5.x |
 | Excel | openpyxl | 3.1.5 |
 | Analítica de datos | Pandas | 3.0.3 |
-| Cómputo numérico | NumPy | 2.4.6 |
 | HTTP client | httpx | 0.28.x |
 | IA | Google Gemini (google-genai) | 2.2.0 |
 | Correo | Resend | 2.30.x |
@@ -464,8 +464,12 @@ Protegidos con `X-Admin-Key` en el header.
 | Emails en logs | Enmascarados: `b*****@empresa.com` |
 | reCAPTCHA | Validado antes de consultar la BD |
 | CORS | Solo origins autorizados; localhost solo en `development` |
-| Validación de entrada | Pydantic v2 en todos los schemas de request |
+| Validación de entrada | Pydantic v2 en todos los schemas de request. Enums en campos `tipo`, `estado`, `severidad`, `prioridad`: valor inválido → 422 antes de tocar la BD |
 | Serialización segura | `response_model` en todos los endpoints → nunca se expone `password_hash` |
+| Límites de paginación | `Query(ge=1, le=N)` en todos los endpoints de listado. Intentar `limit=999999` retorna 422 |
+| Reset de contraseña seguro | Token de 64 chars hex, uso único, expira 24h. Tabla `reset_tokens` en BD; el correo nunca contiene la contraseña en texto plano |
+| Claim `iat` en JWT | Access tokens incluyen `issued_at` para auditoría y detección de tokens antiguos |
+| Verificación de empresa activa | `refrescar_token` verifica `empresa.activo` y `user.activo` antes de emitir nuevo access token |
 | CVEs | Dependencias auditadas con `pip-audit` y Dependabot activo |
 | Sesión única por dispositivo | `session_token` en JWT validado contra BD en cada request y en cambio de contraseña |
 
@@ -581,22 +585,26 @@ Los tests usan **SQLite en memoria** — no requieren conexión a Neon ni variab
 | Archivo | Qué prueba | Tests |
 |---|---|---|
 | `tests/test_auth.py` | Endpoints HTTP de autenticación | 5 |
-| `tests/test_auth_service.py` | Lógica del servicio de auth directamente | 25 |
+| `tests/test_auth_service.py` | Lógica del servicio de auth: login, refresh, reset token seguro, empresa activa | 34 |
 | `tests/test_incidente_service.py` | Servicio de incidentes, investigaciones y acciones correctivas | 18 |
 | `tests/test_riesgo_service.py` | Servicio de peligros, evaluaciones y medidas de control | 18 |
-| `tests/test_capacitacion_service.py` | Servicio de capacitaciones, sesiones, asistencia y evaluaciones | 22 |
+| `tests/test_capacitacion_service.py` | Servicio de capacitaciones, sesiones, asistencia y evaluaciones | 24 |
 | `tests/test_auditoria_service.py` | Servicio de auditorías, hallazgos y no conformidades | 18 |
 | `tests/test_usuario_service.py` | Servicio de usuarios — crear, filtrar, actualizar, área y cargo | 26 |
-| `tests/test_admin_router.py` | Endpoints HTTP de administración con X-Admin-Key + flag debe_cambiar_password | 18 |
-| `tests/test_capacitacion_service.py` | Servicio de capacitaciones, sesiones, asistencia y evaluaciones + filtro activo | 24 |
-| `tests/test_furat_service.py` | Generación del PDF FURAT con distintos escenarios | 6 |
+| `tests/test_admin_router.py` | Endpoints HTTP de administración con X-Admin-Key | 18 |
+| `tests/test_furat_service.py` | PDF FURAT con datos reales + helper `_obtener_datos_furat` | 10 |
 | `tests/test_metricas_service.py` | KPIs, dashboard, alertas, PDF y Excel ejecutivos | 20 |
-| `tests/test_deps.py` | Autenticación HTTP: token inválido/expirado, usuario inexistente, sesión inválida, rol insuficiente | 8 |
+| `tests/test_deps.py` | Autenticación HTTP: token inválido/expirado, sesión inválida, rol insuficiente | 8 |
 | `tests/test_metricas.py` | Endpoints HTTP de métricas | 2 |
 | `tests/test_usuarios.py` | Endpoints HTTP de usuarios | 6 |
-| `tests/test_analytics_service.py` | Servicio analítico: incidentes, riesgos, capacitaciones, cumplimiento, multi-tenancy | 12 |
+| `tests/test_analytics_service.py` | Analytics: SQL aggregations, paginación, filtros de fecha, multi-tenancy | 16 |
+| `tests/test_api_keys.py` | CRUD de API keys y autenticación con X-API-Key | 14 |
+| `tests/test_perfil_notificaciones.py` | Perfil propio y notificaciones | 14 |
+| `tests/test_routers.py` | Límites de paginación: 422 en exceso, 200 en válido — 6 endpoints | 15 |
+| `tests/test_schemas.py` | Validación Enum en schemas: tipo, estado, severidad, prioridad | 24 |
+| `tests/test_migrations.py` | Integridad estructural de migraciones Alembic (sin DB) | 10 |
 
-**Total: 207 tests — cobertura global: 91%**
+**Total: 308 tests — cobertura global: 91%**
 
 #### Diferencia entre tests de endpoint y tests de servicio
 
@@ -709,6 +717,129 @@ Todos los errores retornan:
 ---
 
 ## 8. Historial de Cambios
+
+### Sprint 14 — Seguridad, calidad y deuda técnica (228 → 308 tests)
+
+#### 14.1 Fix cron-job 422 en producción
+
+- `POST /auditorias/verificar-vencidas` rechazaba el header `X-API-Key` de cron-job.org con 422 porque la dependencia usaba `x_admin_key: str = Header(...)` (nombre incorrecto). Corregido a `require_admin_or_api_key` que acepta JWT admin O header `X-API-Key`.
+- Cron diario de cron-job.org ahora retorna 200 OK.
+
+#### 14.2 Seguridad del refresh token
+
+| Cambio | Descripción |
+|---|---|
+| `empresa.activo` verificado | `refrescar_token` verifica que la empresa del usuario esté activa |
+| Claim `iat` en JWT | `create_access_token` incluye `issued_at` en cada token |
+| Expiración máxima 7 días | Refresh tokens no pueden extenderse indefinidamente |
+
+**Archivos:** `app/core/security.py`, `app/services/auth_service.py`
+
+#### 14.3 Reset de contraseña con tokens seguros
+
+Reemplaza el flujo anterior (contraseña temporal en texto plano por correo).
+
+| Componente | Detalle |
+|---|---|
+| `ResetToken` (nuevo modelo) | Token de 64 chars hex, uso único (`usado=True` tras primer uso), expira 24h |
+| `POST /admin/usuarios/{id}/reset-password` | Admin solicita reset → genera token → envía enlace por correo |
+| `POST /auth/reset-password` | Acepta token seguro O el flow anterior (retrocompatibilidad) |
+| Migración `d2e3f4a5b6c7` | Crea tabla `reset_tokens` en Neon |
+
+**Archivos:** `app/models/reset_token.py` (nuevo), `app/services/auth_service.py`, `app/routers/auth_router.py`, `app/routers/admin_router.py`
+
+#### 14.4 FURAT con datos reales
+
+Elimina placeholders `"N/A"` y `"Empleado"` hardcodeados.
+
+| Cambio | Descripción |
+|---|---|
+| `ciudad`, `direccion`, `telefono` en `Empresa` | Nuevas columnas en el modelo y en `POST /admin/empresas` |
+| `tipo_vinculacion` en `User` | Reemplaza el string `"Empleado"` hardcodeado |
+| Helper `_obtener_datos_furat()` | Función pública que retorna el dict de datos FURAT — testeable sin parsear PDF |
+| `_nr()` helper | Reemplaza `None` por `"No registrado"` en lugar de `"N/A"` |
+| Testigos en sección 3 | Se muestran los testigos reales del incidente |
+
+**Migración:** `b1c2d3e4f5a6` — agrega 4 columnas (idempotente: usa `_column_exists()`)
+**Archivos:** `app/models/empresa.py`, `app/models/user.py`, `app/services/furat_service.py`
+
+#### 14.5 Optimización de analytics con SQL
+
+Reemplaza todos los `.all()` con agregaciones SQL puras.
+
+| Función | Antes | Después |
+|---|---|---|
+| `analizar_incidentes` | `.all()` + Python | `func.count()`, `GROUP BY` SQL; Pandas solo para tendencia |
+| `analizar_riesgos` | `.all()` + pandas | `func.count()`, `joinedload` para evaluar N+1 |
+| `analizar_capacitaciones` | pandas completo | SQL `JOIN + COUNT`, `case()` para asistencia |
+| `calcular_cumplimiento` | `.all()` + numpy | 100% SQL, `sum()` Python puro |
+
+**Parámetros nuevos en router:** `limit` (≤1000), `offset`, `fecha_desde`, `fecha_hasta` en incidentes y capacitaciones.
+**Archivos:** `app/services/analytics_service.py`, `app/routers/analytics_router.py`
+
+#### 14.6 Validación de límites de paginación
+
+Todos los endpoints de listado protegidos con `Query(ge=1, le=N)`.
+
+| Endpoint | Parámetro | Límite máximo |
+|---|---|---|
+| `GET /chat/historial` | `limite` | 500 |
+| `GET /usuarios/` | `limit` | 1000 |
+| `GET /usuarios/me/actividad` | `limit` | 200 |
+| `GET /incidentes/` | `limit` | 500 |
+| `GET /riesgos/peligros` | `limit` | 500 |
+| `GET /auditorias/` | `limit` | 500 |
+
+**Archivos:** `app/routers/chat_router.py`, `app/routers/usuario_router.py`, `app/routers/incidente_router.py`, `app/routers/riesgo_router.py`, `app/routers/auditoria_router.py`
+
+#### 14.7 Validación con Enums en schemas de entrada
+
+Reemplaza `str` por Enums en todos los campos de entrada que tienen valores predefinidos. Valor inválido retorna 422 antes de tocar la BD.
+
+| Schema | Campo | Enum |
+|---|---|---|
+| `IncidenteCreate` | `tipo` | `TipoIncidenteEnum` |
+| `IncidenteCreate` | `severidad` | `SeveridadEnum` |
+| `IncidenteEstadoUpdate` | `estado` | `EstadoIncidenteEnum` |
+| `AccionCorrectivaCreate/Update` | `prioridad` | `PrioridadAccionEnum` |
+| `AccionCorrectivaUpdate` | `estado` | `EstadoAccionEnum` |
+| `PeligroCreate` | `tipo` | `TipoPeligroEnum` |
+| `MedidaControlCreate` | `tipo` | `TipoControlEnum` |
+| `MedidaControlUpdate` | `estado` | `EstadoControlEnum` |
+| `AsistenciaCreate` | `estado` | `EstadoAsistenciaEnum` |
+
+**Nuevos Enums en modelo:** `EstadoSesionEnum`, `EstadoAsistenciaEnum` en `app/models/capacitacion.py`
+**Archivos:** `app/schemas/incidente.py`, `app/schemas/riesgo.py`, `app/schemas/capacitacion.py`
+
+#### 14.8 Limpieza de migraciones Alembic
+
+| Problema | Solución |
+|---|---|
+| 2 migraciones no-op (`0b9763c56777`, `116df49d1acf`) | Eliminadas; `738b68b2392d.down_revision` actualizado |
+| `op.create_foreign_key(None, ...)` en `4b8c830edc2c` | Renombrado a `notificaciones_usuario_id_fkey` (nombre real en Neon) |
+| Nombre misleading `318f5a54c35c_add_telefono...` | Renombrado a `318f5a54c35c_allow_null_sesion_estado` |
+| `api_keys` sin migración (tabla existía en Neon) | Migración `c1d2e3f4a5b6` idempotente + `alembic stamp` |
+| `reset_tokens` sin migración y sin tabla en Neon | Migración `d2e3f4a5b6c7` + `alembic upgrade head` |
+| `b1c2d3e4f5a6` falló por `DuplicateColumn` | Convertida a idempotente con `_column_exists()` |
+
+**Estado final Neon:** `d2e3f4a5b6c7 (head)` — 21 migraciones, cadena lineal, sin bifurcaciones.
+
+**Tests nuevos:** `tests/test_migrations.py` — 10 tests de integridad estructural (sin conexión a BD)
+
+#### 14.9 Tests añadidos en este sprint
+
+| Archivo | Tests nuevos | Total |
+|---|---|---|
+| `test_auth_service.py` | +9 (refresh token, reset token seguro) | 34 |
+| `test_furat_service.py` | +4 (datos reales, sin N/A, campos empresa) | 10 |
+| `test_analytics_service.py` | +4 (paginación, agregaciones, filtros fecha) | 16 |
+| `test_routers.py` | +15 (422/200 paginación en 6 endpoints) | 15 |
+| `test_schemas.py` | +24 (Enum válido/inválido por schema) | 24 |
+| `test_migrations.py` | +10 (integridad cadena alembic) | 10 |
+
+**Total: 228 → 308 tests (+80) — sin regresiones**
+
+---
 
 ### Sprint 13 — Notificaciones personales, cron de vencimiento y fixes Santiago (228 tests)
 
