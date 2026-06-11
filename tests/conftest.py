@@ -6,11 +6,13 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base, get_db
 from app.core.security import get_password_hash
+from app.models.api_key import ApiKey  # noqa: F401 — registra tabla en metadata
 from app.models.audit_log import AuditLog  # noqa: F401 — registra tabla en metadata
 from app.models.empresa import Empresa
 from app.models.notificacion import (  # noqa: F401 — registra tabla en metadata
     Notificacion,
 )
+from app.models.reset_token import ResetToken  # noqa: F401 — registra tabla en metadata
 from app.models.user import RoleEnum, User
 
 SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
@@ -89,3 +91,34 @@ def usuario_sst(db, empresa):
     db.commit()
     db.refresh(user)
     return user
+
+
+@pytest.fixture
+def usuario_admin(db):
+    import uuid as _uuid
+
+    email = f"admin_{_uuid.uuid4().hex[:8]}@test.com"
+    user = User(
+        nombre="Admin Test",
+        email=email,
+        password_hash=get_password_hash("Admin1!2345"),
+        role=RoleEnum.admin,
+        empresa_id=None,
+        activo=True,
+        debe_cambiar_password=False,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@pytest.fixture
+def admin_headers(usuario_admin):
+    import os
+
+    os.environ.setdefault("SECRET_KEY", "test-secret-key-para-tests-unitarios")
+    from app.core.security import create_access_token
+
+    token = create_access_token({"sub": str(usuario_admin.id)})
+    return {"Authorization": f"Bearer {token}"}

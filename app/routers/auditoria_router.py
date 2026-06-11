@@ -1,13 +1,12 @@
 # app/routers/auditoria_router.py
-import os
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import require_role
+from app.core.deps import require_admin_or_api_key, require_role
 from app.models.user import User
 from app.schemas.auditoria import (
     AuditoriaCreate,
@@ -28,13 +27,13 @@ router = APIRouter(prefix="/auditorias", tags=["Auditorías Internas"])
 
 @router.post("/verificar-vencidas")
 def verificar_vencidas(
-    x_admin_key: str = Header(...),
     db: Session = Depends(get_db),
+    _=Depends(require_admin_or_api_key),
 ):
-    """Endpoint para cron job diario. Detecta auditorías y NC vencidas."""
-    clave_correcta = os.getenv("ADMIN_SECRET_KEY")
-    if not clave_correcta or x_admin_key != clave_correcta:
-        raise HTTPException(status_code=403, detail="Clave admin incorrecta")
+    """
+    Endpoint para cron job diario. Detecta auditorías y NC vencidas.
+    Acepta autenticación via Bearer JWT (role=admin) o header X-API-Key.
+    """
     return auditoria_service.verificar_auditorias_vencidas(db)
 
 
@@ -153,7 +152,9 @@ def crear_no_conformidad(
     current_user: User = Depends(require_role("sst")),
 ):
     """Crea una no conformidad a partir de un hallazgo."""
-    return auditoria_service.create_no_conformidad(db, hallazgo_id, datos)
+    return auditoria_service.create_no_conformidad(
+        db, hallazgo_id, datos, current_user.empresa_id
+    )
 
 
 @router.patch("/nc/{nc_id}", response_model=NoConformidadResponse)
@@ -164,4 +165,6 @@ def actualizar_no_conformidad(
     current_user: User = Depends(require_role("sst")),
 ):
     """Actualiza el estado de una NC. No cierra sin evidencia."""
-    return auditoria_service.update_no_conformidad(db, nc_id, datos)
+    return auditoria_service.update_no_conformidad(
+        db, nc_id, datos, current_user.empresa_id
+    )

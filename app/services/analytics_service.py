@@ -1,25 +1,46 @@
 # app/services/analytics_service.py
+from datetime import date, datetime
+from typing import Optional
 from uuid import UUID
 
-import numpy as np
 import pandas as pd
-from sqlalchemy.orm import Session
+from sqlalchemy import case, func
+from sqlalchemy.orm import Session, joinedload
 
-from app.models.auditoria import Auditoria, NoConformidad
+from app.models.auditoria import Auditoria, Hallazgo, NoConformidad
 from app.models.capacitacion import (
     Asistencia,
     Capacitacion,
+    Evaluacion,
     RespuestaEmpleado,
     SesionCapacitacion,
 )
-from app.models.incidente import Incidente
-from app.models.riesgo import MedidaControl, Peligro
+from app.models.incidente import EstadoIncidenteEnum, Incidente
+from app.models.riesgo import EstadoControlEnum, MedidaControl, Peligro
 
 
-def analizar_incidentes(db: Session, empresa_id: UUID) -> dict:
-    registros = db.query(Incidente).filter(Incidente.empresa_id == empresa_id).all()
+def analizar_incidentes(
+    db: Session,
+    empresa_id: UUID,
+    limit: int = 1000,
+    offset: int = 0,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+) -> dict:
+    base = [Incidente.empresa_id == empresa_id]
+    if fecha_desde:
+        base.append(
+            Incidente.fecha >= datetime.combine(fecha_desde, datetime.min.time())
+        )
+    if fecha_hasta:
+        base.append(
+            Incidente.fecha <= datetime.combine(fecha_hasta, datetime.max.time())
+        )
 
-    if not registros:
+    # Total — SQL COUNT, nunca carga objetos
+    total = db.query(func.count(Incidente.id)).filter(*base).scalar() or 0
+
+    if total == 0:
         return {
             "total_incidentes": 0,
             "por_tipo": {},
@@ -29,26 +50,37 @@ def analizar_incidentes(db: Session, empresa_id: UUID) -> dict:
             "tendencia": "sin_datos",
         }
 
-    df = pd.DataFrame(
-        [
-            {
-                "tipo": r.tipo.value,
-                "severidad": r.severidad.value,
-                "estado": r.estado.value,
-                "fecha": r.fecha,
-            }
-            for r in registros
-        ]
-    )
+    # Distribuciones — SQL GROUP BY
+    por_tipo = {
+        r[0].value: r[1]
+        for r in db.query(Incidente.tipo, func.count(Incidente.id))
+        .filter(*base)
+        .group_by(Incidente.tipo)
+        .all()
+    }
+    por_severidad = {
+        r[0].value: r[1]
+        for r in db.query(Incidente.severidad, func.count(Incidente.id))
+        .filter(*base)
+        .group_by(Incidente.severidad)
+        .all()
+    }
 
-    df["fecha"] = pd.to_datetime(df["fecha"])
+    # Tendencia — solo fechas, con límite para evitar cargar todo en RAM
+    fechas = [
+        r[0]
+        for r in db.query(Incidente.fecha)
+        .filter(*base)
+        .order_by(Incidente.fecha.desc())
+        .limit(limit)
+        .offset(offset)
+        .all()
+    ]
 
-    por_tipo = df["tipo"].value_counts().to_dict()
-    por_severidad = df["severidad"].value_counts().to_dict()
+    df = pd.DataFrame({"fecha": pd.to_datetime(fechas)})
     meses_activos = df["fecha"].dt.to_period("M").nunique()
-    tasa_mensual = round(len(df) / max(meses_activos, 1), 1)
+    tasa_mensual = round(total / max(meses_activos, 1), 1)
 
-    # Tendencia: último mes vs mes anterior (±20%)
     ultimo_mes = df["fecha"].max().to_period("M")
     mes_anterior = ultimo_mes - 1
     cnt_ultimo = int((df["fecha"].dt.to_period("M") == ultimo_mes).sum())
@@ -62,24 +94,31 @@ def analizar_incidentes(db: Session, empresa_id: UUID) -> dict:
     else:
         tendencia = "estable"
 
-    # Top 3 áreas — a través de lesiones (join se hace en el router si se necesita área)
-    # Por ahora se deja como lista vacía hasta tener el join con lesiones
-    top_areas: list = []
-
     return {
-        "total_incidentes": len(df),
+        "total_incidentes": total,
         "por_tipo": por_tipo,
         "por_severidad": por_severidad,
         "tasa_mensual_promedio": tasa_mensual,
-        "top_areas": top_areas,
+        "top_areas": [],
         "tendencia": tendencia,
     }
 
 
-def analizar_riesgos(db: Session, empresa_id: UUID) -> dict:
-    peligros = db.query(Peligro).filter(Peligro.empresa_id == empresa_id).all()
+def analizar_riesgos(
+    db: Session,
+    empresa_id: UUID,
+    limit: int = 1000,
+    offset: int = 0,
+) -> dict:
+    # Total real — SQL COUNT
+    total = (
+        db.query(func.count(Peligro.id))
+        .filter(Peligro.empresa_id == empresa_id)
+        .scalar()
+        or 0
+    )
 
-    if not peligros:
+    if total == 0:
         return {
             "total_peligros": 0,
             "por_nivel": {},
@@ -88,48 +127,64 @@ def analizar_riesgos(db: Session, empresa_id: UUID) -> dict:
             "criticos_sin_control": 0,
         }
 
+    # Distribución por tipo — SQL GROUP BY
+    por_tipo = {
+        r[0].value: r[1]
+        for r in db.query(Peligro.tipo, func.count(Peligro.id))
+        .filter(Peligro.empresa_id == empresa_id)
+        .group_by(Peligro.tipo)
+        .all()
+    }
+
+    # Peligros con evaluación — joinedload evita N+1, limit acota RAM
+    peligros = (
+        db.query(Peligro)
+        .options(joinedload(Peligro.evaluaciones))
+        .filter(Peligro.empresa_id == empresa_id)
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
     ids_peligros = [p.id for p in peligros]
 
-    controles = (
-        db.query(MedidaControl).filter(MedidaControl.peligro_id.in_(ids_peligros)).all()
-    )
-
-    df_p = pd.DataFrame(
-        [{"peligro_id": str(p.id), "tipo": p.tipo.value} for p in peligros]
-    )
-
-    # Nivel de riesgo desde la evaluación más reciente (no residual)
-    niveles = {}
+    # Nivel por peligro (última evaluación no-residual) — UUID como clave
+    niveles: dict = {}
     for p in peligros:
         ev_iniciales = [e for e in p.evaluaciones if not e.es_residual]
         if ev_iniciales:
             mas_reciente = max(ev_iniciales, key=lambda e: e.fecha_evaluacion)
-            niveles[str(p.id)] = mas_reciente.nivel_riesgo.value
+            niveles[p.id] = mas_reciente.nivel_riesgo.value
         else:
-            niveles[str(p.id)] = "sin_evaluar"
+            niveles[p.id] = "sin_evaluar"
 
-    df_p["nivel"] = df_p["peligro_id"].map(niveles)
+    por_nivel: dict[str, int] = {}
+    for nivel in niveles.values():
+        por_nivel[nivel] = por_nivel.get(nivel, 0) + 1
 
-    por_nivel = df_p["nivel"].value_counts().to_dict()
-    por_tipo = df_p["tipo"].value_counts().to_dict()
-
-    # % con medidas completadas
-    peligros_con_control = {
-        str(c.peligro_id) for c in controles if c.estado.value == "completada"
-    }
-    total = len(peligros)
-    pct_control = (
-        round(len(peligros_con_control) / total * 100, 1) if total > 0 else 0.0
+    # % con medida completada — SQL COUNT DISTINCT
+    con_control = (
+        db.query(func.count(func.distinct(MedidaControl.peligro_id)))
+        .filter(
+            MedidaControl.peligro_id.in_(ids_peligros),
+            MedidaControl.estado == EstadoControlEnum.completada,
+        )
+        .scalar()
+        or 0
     )
+    pct_control = round(con_control / len(peligros) * 100, 1) if peligros else 0.0
 
-    # Críticos sin ninguna medida
-    ids_con_alguna_medida = {str(c.peligro_id) for c in controles}
-    criticos_sin_control = int(
-        df_p[
-            (df_p["nivel"] == "critico")
-            & (~df_p["peligro_id"].isin(ids_con_alguna_medida))
-        ].shape[0]
-    )
+    # Críticos sin ninguna medida — SQL con UUID
+    criticos_ids = [p_id for p_id, nv in niveles.items() if nv == "critico"]
+    if criticos_ids:
+        criticos_con_medida = (
+            db.query(func.count(func.distinct(MedidaControl.peligro_id)))
+            .filter(MedidaControl.peligro_id.in_(criticos_ids))
+            .scalar()
+            or 0
+        )
+        criticos_sin_control = len(criticos_ids) - criticos_con_medida
+    else:
+        criticos_sin_control = 0
 
     return {
         "total_peligros": total,
@@ -140,14 +195,23 @@ def analizar_riesgos(db: Session, empresa_id: UUID) -> dict:
     }
 
 
-def analizar_capacitaciones(db: Session, empresa_id: UUID) -> dict:
-    capacitaciones = (
-        db.query(Capacitacion)
+def analizar_capacitaciones(
+    db: Session,
+    empresa_id: UUID,
+    limit: int = 1000,
+    offset: int = 0,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+) -> dict:
+    # Total capacitaciones activas — SQL COUNT
+    total_cap = (
+        db.query(func.count(Capacitacion.id))
         .filter(Capacitacion.empresa_id == empresa_id, Capacitacion.activo == True)
-        .all()
+        .scalar()
+        or 0
     )
 
-    if not capacitaciones:
+    if total_cap == 0:
         return {
             "total_evaluaciones": 0,
             "tasa_aprobacion_pct": 0.0,
@@ -156,106 +220,92 @@ def analizar_capacitaciones(db: Session, empresa_id: UUID) -> dict:
             "capacitaciones_sin_sesion_realizada": 0,
         }
 
-    ids_cap = [c.id for c in capacitaciones]
+    # Tasa aprobación — SQL JOIN + COUNT
+    total_resp = (
+        db.query(func.count(RespuestaEmpleado.id))
+        .join(Evaluacion, Evaluacion.id == RespuestaEmpleado.evaluacion_id)
+        .join(SesionCapacitacion, SesionCapacitacion.id == Evaluacion.sesion_id)
+        .join(Capacitacion, Capacitacion.id == SesionCapacitacion.capacitacion_id)
+        .filter(Capacitacion.empresa_id == empresa_id, Capacitacion.activo == True)
+        .scalar()
+        or 0
+    )
 
-    # Sesiones realizadas
-    sesiones_realizadas = (
-        db.query(SesionCapacitacion)
+    aprobados = (
+        db.query(func.count(RespuestaEmpleado.id))
+        .join(Evaluacion, Evaluacion.id == RespuestaEmpleado.evaluacion_id)
+        .join(SesionCapacitacion, SesionCapacitacion.id == Evaluacion.sesion_id)
+        .join(Capacitacion, Capacitacion.id == SesionCapacitacion.capacitacion_id)
         .filter(
-            SesionCapacitacion.capacitacion_id.in_(ids_cap),
+            Capacitacion.empresa_id == empresa_id,
+            Capacitacion.activo == True,
+            RespuestaEmpleado.aprobado == True,
+        )
+        .scalar()
+        or 0
+    )
+
+    tasa_aprobacion = round(aprobados / total_resp * 100, 1) if total_resp else 0.0
+
+    # Asistencia por empleado — SQL GROUP BY, sin pandas
+    asistencia_q = (
+        db.query(
+            Asistencia.empleado_id,
+            func.count(Asistencia.id).label("total"),
+            func.sum(case((Asistencia.estado == "presente", 1), else_=0)).label(
+                "presentes"
+            ),
+        )
+        .join(SesionCapacitacion, SesionCapacitacion.id == Asistencia.sesion_id)
+        .join(Capacitacion, Capacitacion.id == SesionCapacitacion.capacitacion_id)
+        .filter(
+            Capacitacion.empresa_id == empresa_id,
             SesionCapacitacion.estado == "realizada",
         )
-        .all()
     )
-
-    ids_sesiones_realizadas = [s.id for s in sesiones_realizadas]
-
-    # Asistencias en sesiones realizadas
-    asistencias = []
-    if ids_sesiones_realizadas:
-        asistencias = (
-            db.query(Asistencia)
-            .filter(Asistencia.sesion_id.in_(ids_sesiones_realizadas))
-            .all()
+    if fecha_desde:
+        asistencia_q = asistencia_q.filter(
+            SesionCapacitacion.fecha
+            >= datetime.combine(fecha_desde, datetime.min.time())
         )
-
-    # Tasa de aprobación (todas las evaluaciones de la empresa)
-    todas_sesiones = (
-        db.query(SesionCapacitacion)
-        .filter(SesionCapacitacion.capacitacion_id.in_(ids_cap))
-        .all()
-    )
-    ids_todas_sesiones = [s.id for s in todas_sesiones]
-
-    respuestas = []
-    if ids_todas_sesiones:
-        from app.models.capacitacion import Evaluacion
-
-        evaluaciones = (
-            db.query(Evaluacion)
-            .filter(Evaluacion.sesion_id.in_(ids_todas_sesiones))
-            .all()
+    if fecha_hasta:
+        asistencia_q = asistencia_q.filter(
+            SesionCapacitacion.fecha
+            <= datetime.combine(fecha_hasta, datetime.max.time())
         )
-        ids_evaluaciones = [e.id for e in evaluaciones]
-        if ids_evaluaciones:
-            respuestas = (
-                db.query(RespuestaEmpleado)
-                .filter(RespuestaEmpleado.evaluacion_id.in_(ids_evaluaciones))
-                .all()
-            )
+    asistencia_rows = asistencia_q.group_by(Asistencia.empleado_id).all()
 
-    # Tasa de aprobación
-    if not respuestas:
-        total_evaluaciones = 0
-        tasa_aprobacion = 0.0
-    else:
-        df_resp = pd.DataFrame(
-            [
-                {"empleado_id": str(r.empleado_id), "aprobado": r.aprobado}
-                for r in respuestas
-            ]
-        )
-        total_evaluaciones = len(df_resp)
-        tasa_aprobacion = round(float(df_resp["aprobado"].mean() * 100), 1)
-
-    # Asistencia promedio y alertas
-    if not asistencias:
+    if not asistencia_rows:
         asistencia_promedio = 0.0
-        alertas = []
+        alertas: list = []
     else:
-        df_asi = pd.DataFrame(
-            [
-                {
-                    "empleado_id": str(a.empleado_id),
-                    "presente": 1 if a.estado == "presente" else 0,
-                }
-                for a in asistencias
-            ]
-        )
-
-        por_empleado = (
-            df_asi.groupby("empleado_id")["presente"]
-            .agg(["sum", "count"])
-            .reset_index()
-        )
-        por_empleado["pct"] = np.round(
-            por_empleado["sum"] / por_empleado["count"] * 100, 1
-        )
-
-        asistencia_promedio = round(float(por_empleado["pct"].mean()), 1)
-
-        df_alertas = por_empleado[por_empleado["pct"] < 80]
+        pcts = [r.presentes / r.total * 100 for r in asistencia_rows if r.total > 0]
+        asistencia_promedio = round(sum(pcts) / len(pcts), 1) if pcts else 0.0
         alertas = [
-            {"empleado_id": row["empleado_id"], "asistencia_pct": row["pct"]}
-            for _, row in df_alertas.iterrows()
+            {
+                "empleado_id": str(r.empleado_id),
+                "asistencia_pct": round(r.presentes / r.total * 100, 1),
+            }
+            for r in asistencia_rows
+            if r.total > 0 and r.presentes / r.total < 0.8
         ]
 
-    # Capacitaciones sin sesión realizada
-    ids_con_sesion = {s.capacitacion_id for s in sesiones_realizadas}
-    sin_sesion = len([c for c in capacitaciones if c.id not in ids_con_sesion])
+    # Capacitaciones sin sesión realizada — SQL
+    cap_con_sesion = (
+        db.query(func.count(func.distinct(SesionCapacitacion.capacitacion_id)))
+        .join(Capacitacion, Capacitacion.id == SesionCapacitacion.capacitacion_id)
+        .filter(
+            Capacitacion.empresa_id == empresa_id,
+            Capacitacion.activo == True,
+            SesionCapacitacion.estado == "realizada",
+        )
+        .scalar()
+        or 0
+    )
+    sin_sesion = total_cap - cap_con_sesion
 
     return {
-        "total_evaluaciones": total_evaluaciones,
+        "total_evaluaciones": total_resp,
         "tasa_aprobacion_pct": tasa_aprobacion,
         "asistencia_promedio_pct": asistencia_promedio,
         "alertas_asistencia": alertas,
@@ -265,89 +315,97 @@ def analizar_capacitaciones(db: Session, empresa_id: UUID) -> dict:
 
 def calcular_cumplimiento(db: Session, empresa_id: UUID) -> dict:
     """
-    Score SG-SST (0–100) basado en 4 componentes con peso igual (25 c/u):
-    1. % incidentes investigados (estado != 'borrador')
-    2. % peligros con medida de control completada
-    3. % capacitaciones activas con al menos una sesión realizada
-    4. % no conformidades cerradas
+    Score SG-SST (0–100) basado en 4 componentes con peso igual (25 c/u).
+    100% SQL — no carga objetos en memoria.
     """
-    scores = {}
+    scores: dict[str, float] = {}
 
-    # 1. Incidentes investigados
-    incidentes = db.query(Incidente).filter(Incidente.empresa_id == empresa_id).all()
-    if incidentes:
-        investigados = sum(1 for i in incidentes if i.estado.value != "borrador")
-        scores["incidentes_investigados"] = round(
-            investigados / len(incidentes) * 100, 1
+    # 1. Incidentes investigados (estado != borrador)
+    total_inc = (
+        db.query(func.count(Incidente.id))
+        .filter(Incidente.empresa_id == empresa_id)
+        .scalar()
+        or 0
+    )
+    investigados = (
+        db.query(func.count(Incidente.id))
+        .filter(
+            Incidente.empresa_id == empresa_id,
+            Incidente.estado != EstadoIncidenteEnum.borrador,
         )
-    else:
-        scores["incidentes_investigados"] = 0.0
+        .scalar()
+        or 0
+    )
+    scores["incidentes_investigados"] = (
+        round(investigados / total_inc * 100, 1) if total_inc else 0.0
+    )
 
-    # 2. Peligros con control implementado
-    peligros = (
-        db.query(Peligro)
+    # 2. Peligros con medida de control completada
+    total_peligros = (
+        db.query(func.count(Peligro.id))
         .filter(Peligro.empresa_id == empresa_id, Peligro.activo == True)
-        .all()
+        .scalar()
+        or 0
     )
-    if peligros:
-        ids_peligros = [p.id for p in peligros]
-        controles_impl = (
-            db.query(MedidaControl)
-            .filter(
-                MedidaControl.peligro_id.in_(ids_peligros),
-                MedidaControl.estado == "completada",
-            )
-            .all()
+    peligros_con_control = (
+        db.query(func.count(func.distinct(MedidaControl.peligro_id)))
+        .join(Peligro, Peligro.id == MedidaControl.peligro_id)
+        .filter(
+            Peligro.empresa_id == empresa_id,
+            Peligro.activo == True,
+            MedidaControl.estado == EstadoControlEnum.completada,
         )
-        ids_con_control = {c.peligro_id for c in controles_impl}
-        scores["peligros_con_control"] = round(
-            len(ids_con_control) / len(peligros) * 100, 1
-        )
-    else:
-        scores["peligros_con_control"] = 0.0
+        .scalar()
+        or 0
+    )
+    scores["peligros_con_control"] = (
+        round(peligros_con_control / total_peligros * 100, 1) if total_peligros else 0.0
+    )
 
-    # 3. Capacitaciones con sesión realizada
-    capacitaciones = (
-        db.query(Capacitacion)
+    # 3. Capacitaciones activas con al menos una sesión realizada
+    total_cap = (
+        db.query(func.count(Capacitacion.id))
         .filter(Capacitacion.empresa_id == empresa_id, Capacitacion.activo == True)
-        .all()
+        .scalar()
+        or 0
     )
-    if capacitaciones:
-        ids_cap = [c.id for c in capacitaciones]
-        sesiones_reali = (
-            db.query(SesionCapacitacion)
-            .filter(
-                SesionCapacitacion.capacitacion_id.in_(ids_cap),
-                SesionCapacitacion.estado == "realizada",
-            )
-            .all()
+    cap_con_sesion = (
+        db.query(func.count(func.distinct(SesionCapacitacion.capacitacion_id)))
+        .join(Capacitacion, Capacitacion.id == SesionCapacitacion.capacitacion_id)
+        .filter(
+            Capacitacion.empresa_id == empresa_id,
+            Capacitacion.activo == True,
+            SesionCapacitacion.estado == "realizada",
         )
-        ids_cap_con_sesion = {s.capacitacion_id for s in sesiones_reali}
-        scores["capacitaciones_realizadas"] = round(
-            len(ids_cap_con_sesion) / len(capacitaciones) * 100, 1
-        )
-    else:
-        scores["capacitaciones_realizadas"] = 0.0
+        .scalar()
+        or 0
+    )
+    scores["capacitaciones_realizadas"] = (
+        round(cap_con_sesion / total_cap * 100, 1) if total_cap else 0.0
+    )
 
     # 4. No conformidades cerradas
-    no_conformidades = (
-        db.query(NoConformidad)
-        .join(NoConformidad.hallazgo)
-        .join(NoConformidad.hallazgo.property.mapper.class_.auditoria)
+    total_nc = (
+        db.query(func.count(NoConformidad.id))
+        .join(Hallazgo, Hallazgo.id == NoConformidad.hallazgo_id)
+        .join(Auditoria, Auditoria.id == Hallazgo.auditoria_id)
         .filter(Auditoria.empresa_id == empresa_id)
-        .all()
+        .scalar()
+        or 0
     )
-    if no_conformidades:
-        cerradas = sum(1 for nc in no_conformidades if nc.estado.value == "cerrada")
-        scores["no_conformidades_cerradas"] = round(
-            cerradas / len(no_conformidades) * 100, 1
-        )
-    else:
-        scores["no_conformidades_cerradas"] = 0.0
+    cerradas_nc = (
+        db.query(func.count(NoConformidad.id))
+        .join(Hallazgo, Hallazgo.id == NoConformidad.hallazgo_id)
+        .join(Auditoria, Auditoria.id == Hallazgo.auditoria_id)
+        .filter(Auditoria.empresa_id == empresa_id, NoConformidad.estado == "cerrada")
+        .scalar()
+        or 0
+    )
+    scores["no_conformidades_cerradas"] = (
+        round(cerradas_nc / total_nc * 100, 1) if total_nc else 0.0
+    )
 
-    score_total = round(float(np.mean(list(scores.values()))), 1)
+    valores = list(scores.values())
+    score_total = round(sum(valores) / len(valores), 1) if valores else 0.0
 
-    return {
-        "score_total": score_total,
-        "desglose": scores,
-    }
+    return {"score_total": score_total, "desglose": scores}

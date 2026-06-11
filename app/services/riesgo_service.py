@@ -163,8 +163,18 @@ def create_medida_control(
     return medida
 
 
-def update_medida_control(db: Session, medida_id: UUID, datos: MedidaControlUpdate):
-    medida = db.query(MedidaControl).filter(MedidaControl.id == medida_id).first()
+def update_medida_control(
+    db: Session, medida_id: UUID, empresa_id: UUID, datos: MedidaControlUpdate
+):
+    medida = (
+        db.query(MedidaControl)
+        .join(MedidaControl.peligro)
+        .filter(
+            MedidaControl.id == medida_id,
+            Peligro.empresa_id == empresa_id,
+        )
+        .first()
+    )
     if not medida:
         raise HTTPException(status_code=404, detail="Medida de control no encontrada")
 

@@ -1,4 +1,7 @@
 # app/routers/auth_router.py
+from typing import Optional
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPBearer
 from jose import JWTError
@@ -68,6 +71,22 @@ class LogoutRequest(BaseModel):
     refresh_token: str
 
 
+class ApiKeyCreate(BaseModel):
+    descripcion: Optional[str] = None
+    rol: str = "cron"
+    empresa_id: Optional[UUID] = None
+
+
+class ApiKeyResponse(BaseModel):
+    id: str
+    clave: str
+    descripcion: Optional[str]
+    rol: str
+    activo: bool
+    fecha_creacion: str
+    empresa_id: Optional[str]
+
+
 # ── Endpoints ────────────────────────────────────────────────────
 
 
@@ -102,6 +121,11 @@ def forgot_password(datos: ForgotPasswordRequest, db: Session = Depends(get_db))
 
 @router.post("/reset-password")
 def reset_password(datos: ResetPasswordRequest, db: Session = Depends(get_db)):
+    from app.models.reset_token import ResetToken
+
+    rt = db.query(ResetToken).filter(ResetToken.token == datos.token).first()
+    if rt:
+        return auth_service.usar_reset_token(datos.token, datos.new_password, db)
     return auth_service.resetear_password(datos.token, datos.new_password, db)
 
 
@@ -131,3 +155,31 @@ def refresh_token(datos: RefreshRequest, db: Session = Depends(get_db)):
 @router.post("/logout")
 def logout(datos: LogoutRequest, db: Session = Depends(get_db)):
     return auth_service.logout(datos.refresh_token, db)
+
+
+@router.post("/api-keys", response_model=ApiKeyResponse, status_code=201)
+def crear_api_key(
+    datos: ApiKeyCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role("admin")),
+):
+    """
+    Crea una API key para autenticación sin JWT (ej. cron jobs).
+    Solo el administrador puede generarlas.
+
+    Uso posterior con curl:
+        curl -X POST https://pisst.onrender.com/auditorias/verificar-vencidas \\
+             -H "X-API-Key: sk_..."
+    """
+    from app.services.api_key_service import crear_api_key as crear
+
+    key = crear(db, datos.descripcion, datos.rol, datos.empresa_id)
+    return {
+        "id": str(key.id),
+        "clave": key.clave,
+        "descripcion": key.descripcion,
+        "rol": key.rol,
+        "activo": key.activo,
+        "fecha_creacion": key.fecha_creacion.isoformat(),
+        "empresa_id": str(key.empresa_id) if key.empresa_id else None,
+    }

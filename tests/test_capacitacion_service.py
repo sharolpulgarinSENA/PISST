@@ -257,7 +257,7 @@ def test_registrar_asistencia_nueva(db, empresa, usuario_sst):
     datos = AsistenciaCreate(
         sesion_id=sesion.id, empleado_id=usuario_sst.id, estado="presente"
     )
-    asistencia = capacitacion_service.registrar_asistencia(db, datos)
+    asistencia = capacitacion_service.registrar_asistencia(db, datos, empresa.id)
     assert asistencia.empleado_id == usuario_sst.id
 
 
@@ -267,9 +267,9 @@ def test_registrar_asistencia_duplicada_actualiza(db, empresa, usuario_sst):
     datos = AsistenciaCreate(
         sesion_id=sesion.id, empleado_id=usuario_sst.id, estado="presente"
     )
-    capacitacion_service.registrar_asistencia(db, datos)
+    capacitacion_service.registrar_asistencia(db, datos, empresa.id)
     datos.estado = "ausente"
-    actualizada = capacitacion_service.registrar_asistencia(db, datos)
+    actualizada = capacitacion_service.registrar_asistencia(db, datos, empresa.id)
     assert actualizada.estado == "ausente"
 
 
@@ -277,9 +277,11 @@ def test_get_asistencia_by_sesion(db, empresa, usuario_sst):
     cap = make_capacitacion(db, empresa)
     sesion = make_sesion(db, empresa, cap)
     capacitacion_service.registrar_asistencia(
-        db, AsistenciaCreate(sesion_id=sesion.id, empleado_id=usuario_sst.id)
+        db,
+        AsistenciaCreate(sesion_id=sesion.id, empleado_id=usuario_sst.id),
+        empresa.id,
     )
-    resultado = capacitacion_service.get_asistencia_by_sesion(db, sesion.id)
+    resultado = capacitacion_service.get_asistencia_by_sesion(db, sesion.id, empresa.id)
     assert len(resultado) >= 1
 
 
@@ -287,9 +289,13 @@ def test_get_historial_empleado(db, empresa, usuario_sst):
     cap = make_capacitacion(db, empresa)
     sesion = make_sesion(db, empresa, cap)
     capacitacion_service.registrar_asistencia(
-        db, AsistenciaCreate(sesion_id=sesion.id, empleado_id=usuario_sst.id)
+        db,
+        AsistenciaCreate(sesion_id=sesion.id, empleado_id=usuario_sst.id),
+        empresa.id,
     )
-    historial = capacitacion_service.get_historial_empleado(db, usuario_sst.id)
+    historial = capacitacion_service.get_historial_empleado(
+        db, usuario_sst.id, empresa.id
+    )
     assert len(historial) >= 1
 
 
@@ -314,7 +320,9 @@ def test_responder_evaluacion_aprobado(db, empresa, usuario_sst):
         evaluacion_id=evaluacion.id,
         respuestas=[RespuestaCreate(pregunta_id=pregunta.id, respuesta_dada="c")],
     )
-    resultado = capacitacion_service.responder_evaluacion(db, request, usuario_sst.id)
+    resultado = capacitacion_service.responder_evaluacion(
+        db, request, usuario_sst.id, empresa.id
+    )
     assert resultado["aprobado"] is True
     assert resultado["puntaje_final"] == 100
 
@@ -329,7 +337,9 @@ def test_responder_evaluacion_reprobado(db, empresa, usuario_sst):
         evaluacion_id=evaluacion.id,
         respuestas=[RespuestaCreate(pregunta_id=pregunta.id, respuesta_dada="a")],
     )
-    resultado = capacitacion_service.responder_evaluacion(db, request, usuario_sst.id)
+    resultado = capacitacion_service.responder_evaluacion(
+        db, request, usuario_sst.id, empresa.id
+    )
     assert resultado["aprobado"] is False
     assert resultado["puntaje_final"] == 0
 
@@ -339,7 +349,9 @@ def test_responder_evaluacion_no_encontrada(db, empresa, usuario_sst):
 
     request = ResponderEvaluacionRequest(evaluacion_id=uuid.uuid4(), respuestas=[])
     with pytest.raises(HTTPException) as exc:
-        capacitacion_service.responder_evaluacion(db, request, usuario_sst.id)
+        capacitacion_service.responder_evaluacion(
+            db, request, usuario_sst.id, empresa.id
+        )
     assert exc.value.status_code == 404
 
 

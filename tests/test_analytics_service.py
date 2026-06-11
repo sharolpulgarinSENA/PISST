@@ -1,6 +1,6 @@
 # tests/test_analytics_service.py
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from app.models.capacitacion import Asistencia, Capacitacion, SesionCapacitacion
 from app.models.incidente import Incidente, SeveridadEnum, TipoIncidenteEnum
@@ -109,7 +109,7 @@ def make_asistencia(db, sesion, empleado, estado="presente"):
     return a
 
 
-def make_respuesta_empleado(db, evaluacion, empleado, aprobado=True):
+def make_respuesta_empleado(db, evaluacion, empleado, empresa_id, aprobado=True):
     from app.schemas.capacitacion import ResponderEvaluacionRequest, RespuestaCreate
     from app.services import capacitacion_service
 
@@ -121,7 +121,9 @@ def make_respuesta_empleado(db, evaluacion, empleado, aprobado=True):
             RespuestaCreate(pregunta_id=pregunta.id, respuesta_dada=respuesta_correcta)
         ],
     )
-    return capacitacion_service.responder_evaluacion(db, request, empleado.id)
+    return capacitacion_service.responder_evaluacion(
+        db, request, empleado.id, empresa_id
+    )
 
 
 # ── analizar_incidentes ──────────────────────────────────────────────
@@ -256,7 +258,7 @@ def test_analytics_capacitaciones_aprobacion(db, empresa, usuario_sst):
         ),
     )
 
-    make_respuesta_empleado(db, ev, usuario_sst, aprobado=True)
+    make_respuesta_empleado(db, ev, usuario_sst, empresa.id, aprobado=True)
 
     resultado = analytics_service.analizar_capacitaciones(db, empresa.id)
     assert resultado["total_evaluaciones"] >= 1
@@ -289,6 +291,66 @@ def test_analytics_capacitaciones_sin_sesion_realizada(db, empresa):
 
     resultado = analytics_service.analizar_capacitaciones(db, empresa.id)
     assert resultado["capacitaciones_sin_sesion_realizada"] >= 1
+
+
+# ── tests optimización: paginación, agregaciones, fechas ────────────
+
+
+def test_analytics_sin_paginacion(client, empresa, usuario_sst):
+    """limit > 1000 debe retornar 422 — FastAPI Query(le=1000) lo rechaza."""
+    import os
+
+    os.environ.setdefault("SECRET_KEY", "test-secret-key-para-tests-unitarios")
+    from app.core.security import create_access_token
+
+    token = create_access_token({"sub": str(usuario_sst.id)})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = client.get("/analytics/incidentes?limit=1001", headers=headers)
+    assert resp.status_code == 422
+
+
+def test_analytics_con_paginacion(db, empresa, usuario_sst):
+    """limit limita los registros cargados para tendencia; total_incidentes siempre es real."""
+    make_incidente(db, empresa, usuario_sst)
+    make_incidente(db, empresa, usuario_sst)
+    make_incidente(db, empresa, usuario_sst)
+
+    resultado = analytics_service.analizar_incidentes(db, empresa.id, limit=1)
+    assert resultado["total_incidentes"] >= 3
+    assert isinstance(resultado["tendencia"], str)
+
+
+def test_analytics_agregaciones(db, empresa, usuario_sst):
+    """SQL COUNT debe coincidir con la suma de los valores por tipo."""
+    make_incidente(db, empresa, usuario_sst, TipoIncidenteEnum.accidente)
+    make_incidente(db, empresa, usuario_sst, TipoIncidenteEnum.incidente)
+    make_incidente(db, empresa, usuario_sst, TipoIncidenteEnum.accidente)
+
+    resultado = analytics_service.analizar_incidentes(db, empresa.id)
+    assert resultado["total_incidentes"] == sum(resultado["por_tipo"].values())
+
+
+def test_analytics_filtro_fechas(db, empresa, usuario_sst):
+    """fecha_desde / fecha_hasta filtran los incidentes analizados."""
+    from datetime import timedelta
+
+    make_incidente(db, empresa, usuario_sst)
+
+    ayer = date.today() - timedelta(days=1)
+    manana = date.today() + timedelta(days=1)
+
+    con_rango = analytics_service.analizar_incidentes(
+        db, empresa.id, fecha_desde=ayer, fecha_hasta=manana
+    )
+    hace_dos_anos = date.today() - timedelta(days=730)
+    hace_un_ano = date.today() - timedelta(days=365)
+    sin_rango = analytics_service.analizar_incidentes(
+        db, empresa.id, fecha_desde=hace_dos_anos, fecha_hasta=hace_un_ano
+    )
+
+    assert con_rango["total_incidentes"] >= 1
+    assert sin_rango["total_incidentes"] == 0
 
 
 # ── calcular_cumplimiento ────────────────────────────────────────────

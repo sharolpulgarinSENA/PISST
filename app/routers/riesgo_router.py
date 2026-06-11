@@ -133,4 +133,6 @@ def actualizar_medida_control(
     current_user: User = Depends(require_role("sst")),
 ):
     """Actualiza el estado de una medida de control. No cierra sin evidencia."""
-    return riesgo_service.update_medida_control(db, medida_id, datos)
+    return riesgo_service.update_medida_control(
+        db, medida_id, current_user.empresa_id, datos
+    )

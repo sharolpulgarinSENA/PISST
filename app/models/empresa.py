@@ -15,6 +15,9 @@ class Empresa(Base):
     nombre = Column(String(200), nullable=False)  # nullable=False = campo obligatorio
     nit = Column(String(20), unique=True, nullable=False)  # unique = no duplicados
     sector = Column(String(100))
+    ciudad = Column(String(100), nullable=True)
+    direccion = Column(String(300), nullable=True)
+    telefono = Column(String(30), nullable=True)
     activo = Column(Boolean, default=True)
     fecha_creacion = Column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)

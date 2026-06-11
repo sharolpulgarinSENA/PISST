@@ -129,11 +129,11 @@ def test_create_no_conformidad(db, empresa, usuario_sst):
         fecha_limite=datetime(2026, 7, 1, tzinfo=timezone.utc),
         responsable_id=usuario_sst.id,
     )
-    nc = auditoria_service.create_no_conformidad(db, hallazgo.id, datos)
+    nc = auditoria_service.create_no_conformidad(db, hallazgo.id, datos, empresa.id)
     assert nc.hallazgo_id == hallazgo.id
 
 
-def test_create_no_conformidad_hallazgo_inexistente(db):
+def test_create_no_conformidad_hallazgo_inexistente(db, empresa):
     from fastapi import HTTPException
 
     datos = NoConformidadCreate(
@@ -141,7 +141,7 @@ def test_create_no_conformidad_hallazgo_inexistente(db):
         fecha_limite=datetime(2026, 7, 1, tzinfo=timezone.utc),
     )
     with pytest.raises(HTTPException) as exc:
-        auditoria_service.create_no_conformidad(db, uuid.uuid4(), datos)
+        auditoria_service.create_no_conformidad(db, uuid.uuid4(), datos, empresa.id)
     assert exc.value.status_code == 404
 
 
@@ -157,10 +157,11 @@ def test_update_no_conformidad_sin_evidencia_falla(db, empresa, usuario_sst):
             descripcion="NC sin evidencia",
             fecha_limite=datetime(2026, 7, 1, tzinfo=timezone.utc),
         ),
+        empresa.id,
     )
     with pytest.raises(HTTPException) as exc:
         auditoria_service.update_no_conformidad(
-            db, nc.id, NoConformidadUpdate(estado="cerrada")
+            db, nc.id, NoConformidadUpdate(estado="cerrada"), empresa.id
         )
     assert exc.value.status_code == 400
 
@@ -175,22 +176,24 @@ def test_update_no_conformidad_cerrada(db, empresa, usuario_sst):
             descripcion="NC con evidencia",
             fecha_limite=datetime(2026, 7, 1, tzinfo=timezone.utc),
         ),
+        empresa.id,
     )
     actualizada = auditoria_service.update_no_conformidad(
         db,
         nc.id,
         NoConformidadUpdate(estado="cerrada", evidencia_cierre="Extintor instalado"),
+        empresa.id,
     )
     assert actualizada.estado == "cerrada"
     assert actualizada.fecha_cierre is not None
 
 
-def test_update_no_conformidad_no_encontrada(db):
+def test_update_no_conformidad_no_encontrada(db, empresa):
     from fastapi import HTTPException
 
     with pytest.raises(HTTPException) as exc:
         auditoria_service.update_no_conformidad(
-            db, uuid.uuid4(), NoConformidadUpdate(estado="en_proceso")
+            db, uuid.uuid4(), NoConformidadUpdate(estado="en_proceso"), empresa.id
         )
     assert exc.value.status_code == 404
 
@@ -215,6 +218,7 @@ def test_get_progreso_con_nc_abierta(db, empresa):
             descripcion="NC abierta",
             fecha_limite=datetime(2026, 7, 1, tzinfo=timezone.utc),
         ),
+        empresa.id,
     )
     progreso = auditoria_service.get_progreso_auditoria(db, auditoria.id, empresa.id)
     assert progreso["total_no_conformidades"] == 1
@@ -232,11 +236,13 @@ def test_get_progreso_con_nc_cerrada(db, empresa):
             descripcion="NC a cerrar",
             fecha_limite=datetime(2026, 7, 1, tzinfo=timezone.utc),
         ),
+        empresa.id,
     )
     auditoria_service.update_no_conformidad(
         db,
         nc.id,
         NoConformidadUpdate(estado="cerrada", evidencia_cierre="Acción tomada"),
+        empresa.id,
     )
     progreso = auditoria_service.get_progreso_auditoria(db, auditoria.id, empresa.id)
     assert progreso["porcentaje_cierre"] == 100
@@ -303,6 +309,7 @@ def test_verificar_marca_nc_vencidas(db, empresa):
             descripcion="NC con fecha vencida",
             fecha_limite=datetime.now(timezone.utc) - timedelta(days=2),
         ),
+        empresa.id,
     )
 
     resultado = auditoria_service.verificar_auditorias_vencidas(db)
@@ -315,26 +322,24 @@ def test_verificar_marca_nc_vencidas(db, empresa):
 # ── POST /auditorias/verificar-vencidas ─────────────────────────────
 
 
-def test_verificar_vencidas_endpoint_ok(client, monkeypatch):
-    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-test")
+def test_verificar_vencidas_endpoint_ok(client, admin_headers):
     resp = client.post(
         "/auditorias/verificar-vencidas",
-        headers={"x-admin-key": "clave-test"},
+        headers=admin_headers,
     )
     assert resp.status_code == 200
     assert "auditorias_vencidas" in resp.json()
     assert "nc_marcadas_vencidas" in resp.json()
 
 
-def test_verificar_vencidas_endpoint_clave_incorrecta(client, monkeypatch):
-    monkeypatch.setenv("ADMIN_SECRET_KEY", "clave-test")
+def test_verificar_vencidas_endpoint_token_invalido(client):
     resp = client.post(
         "/auditorias/verificar-vencidas",
-        headers={"x-admin-key": "clave-incorrecta"},
+        headers={"Authorization": "Bearer token_invalido"},
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
-def test_verificar_vencidas_endpoint_sin_header(client):
+def test_verificar_vencidas_endpoint_sin_auth(client):
     resp = client.post("/auditorias/verificar-vencidas")
-    assert resp.status_code == 422
+    assert resp.status_code in (401, 403)
