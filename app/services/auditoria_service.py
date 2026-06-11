@@ -1,5 +1,5 @@
 # app/services/auditoria_service.py
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -151,12 +151,35 @@ def create_no_conformidad(
 
 
 def verificar_auditorias_vencidas(db: Session):
-    """Detecta auditorías vencidas y NC vencidas, crea notificaciones por empresa."""
+    """
+    Cron diario. Detecta registros vencidos y próximos a vencer (24h) en todos
+    los módulos con fecha límite: auditorías, acciones correctivas, sesiones de
+    capacitación, controles de riesgo y hallazgos/NC.
+    Genera notificaciones en el feed y actualiza estados.
+    """
+    from app.models.accion_correctiva import AccionCorrectiva, EstadoAccionEnum
+    from app.models.capacitacion import Capacitacion, SesionCapacitacion
+    from app.models.incidente import Incidente
+    from app.models.riesgo import EstadoControlEnum, MedidaControl, Peligro
     from app.services import notificacion_service
 
     ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    manana = ahora + timedelta(hours=24)
 
-    # Auditorías cuya fecha_programada ya pasó y no están cerradas
+    resumen = {
+        "auditorias_vencidas": 0,
+        "auditorias_proximas": 0,
+        "acciones_vencidas": 0,
+        "acciones_proximas": 0,
+        "sesiones_vencidas": 0,
+        "sesiones_proximas": 0,
+        "controles_vencidos": 0,
+        "controles_proximos": 0,
+        "nc_vencidas": 0,
+        "nc_proximas": 0,
+    }
+
+    # ── 1. Auditorías ──────────────────────────────────────────────
     auditorias_vencidas = (
         db.query(Auditoria)
         .filter(
@@ -167,22 +190,184 @@ def verificar_auditorias_vencidas(db: Session):
         )
         .all()
     )
-
-    empresas_notificadas = set()
     for auditoria in auditorias_vencidas:
-        if auditoria.empresa_id not in empresas_notificadas:
+        notificacion_service.crear_notificacion(
+            db,
+            empresa_id=auditoria.empresa_id,
+            tipo="auditoria_vencida",
+            titulo="Auditoría vencida sin cerrar",
+            descripcion=f"Auditoría programada para el {auditoria.fecha_programada.strftime('%d/%m/%Y')} no ha sido completada.",
+            modulo="auditorias",
+            url_destino=f"/auditorias?auditoria={auditoria.id}",
+        )
+    resumen["auditorias_vencidas"] = len(auditorias_vencidas)
+
+    auditorias_proximas = (
+        db.query(Auditoria)
+        .filter(
+            Auditoria.fecha_programada >= ahora,
+            Auditoria.fecha_programada <= manana,
+            Auditoria.estado.notin_(
+                [EstadoAuditoriaEnum.completada, EstadoAuditoriaEnum.cancelada]
+            ),
+        )
+        .all()
+    )
+    for auditoria in auditorias_proximas:
+        notificacion_service.crear_notificacion(
+            db,
+            empresa_id=auditoria.empresa_id,
+            tipo="auditoria_proxima_vencer",
+            titulo="Auditoría próxima a vencer",
+            descripcion=f"La auditoría del {auditoria.fecha_programada.strftime('%d/%m/%Y')} vence mañana.",
+            modulo="auditorias",
+            url_destino=f"/auditorias?auditoria={auditoria.id}",
+        )
+    resumen["auditorias_proximas"] = len(auditorias_proximas)
+
+    # ── 2. Acciones correctivas ────────────────────────────────────
+    acciones_vencidas = (
+        db.query(AccionCorrectiva)
+        .filter(
+            AccionCorrectiva.fecha_limite < ahora,
+            AccionCorrectiva.estado != EstadoAccionEnum.completada,
+        )
+        .all()
+    )
+    for accion in acciones_vencidas:
+        incidente = db.query(Incidente).filter_by(id=accion.incidente_id).first()
+        if incidente:
             notificacion_service.crear_notificacion(
                 db,
-                empresa_id=auditoria.empresa_id,
-                tipo="auditoria_vencida",
-                titulo="Auditoría vencida sin cerrar",
-                descripcion=f"Auditoría programada para el {auditoria.fecha_programada.strftime('%d/%m/%Y')} no ha sido completada.",
-                modulo="auditorias",
-                url_destino="/auditorias",
+                empresa_id=incidente.empresa_id,
+                tipo="accion_correctiva_vencida",
+                titulo="Acción correctiva vencida",
+                descripcion=f"Acción correctiva sin completar desde {accion.fecha_limite.strftime('%d/%m/%Y')}.",
+                modulo="incidentes",
+                url_destino=f"/incidentes?reporte={accion.incidente_id}&tab=acciones",
             )
-            empresas_notificadas.add(auditoria.empresa_id)
+    resumen["acciones_vencidas"] = len(acciones_vencidas)
 
-    # NC cuya fecha_limite ya pasó y siguen abiertas o en proceso
+    acciones_proximas = (
+        db.query(AccionCorrectiva)
+        .filter(
+            AccionCorrectiva.fecha_limite >= ahora,
+            AccionCorrectiva.fecha_limite <= manana,
+            AccionCorrectiva.estado != EstadoAccionEnum.completada,
+        )
+        .all()
+    )
+    for accion in acciones_proximas:
+        incidente = db.query(Incidente).filter_by(id=accion.incidente_id).first()
+        if incidente:
+            notificacion_service.crear_notificacion(
+                db,
+                empresa_id=incidente.empresa_id,
+                tipo="accion_correctiva_proxima_vencer",
+                titulo="Acción correctiva próxima a vencer",
+                descripcion=f"Acción correctiva vence mañana ({accion.fecha_limite.strftime('%d/%m/%Y')}).",
+                modulo="incidentes",
+                url_destino=f"/incidentes?reporte={accion.incidente_id}&tab=acciones",
+            )
+    resumen["acciones_proximas"] = len(acciones_proximas)
+
+    # ── 3. Sesiones de capacitación ────────────────────────────────
+    sesiones_vencidas = (
+        db.query(SesionCapacitacion)
+        .filter(
+            SesionCapacitacion.fecha < ahora,
+            SesionCapacitacion.estado == "programada",
+        )
+        .all()
+    )
+    for sesion in sesiones_vencidas:
+        notificacion_service.crear_notificacion(
+            db,
+            empresa_id=db.query(Capacitacion)
+            .filter_by(id=sesion.capacitacion_id)
+            .first()
+            .empresa_id,
+            tipo="capacitacion_sesion_vencida",
+            titulo="Sesión de capacitación no realizada",
+            descripcion=f"La sesión programada para el {sesion.fecha.strftime('%d/%m/%Y')} no fue marcada como realizada.",
+            modulo="capacitaciones",
+            url_destino=f"/capacitaciones?capacitacion={sesion.capacitacion_id}",
+        )
+        sesion.estado = "no_realizada"
+    resumen["sesiones_vencidas"] = len(sesiones_vencidas)
+
+    sesiones_proximas = (
+        db.query(SesionCapacitacion)
+        .filter(
+            SesionCapacitacion.fecha >= ahora,
+            SesionCapacitacion.fecha <= manana,
+            SesionCapacitacion.estado == "programada",
+        )
+        .all()
+    )
+    for sesion in sesiones_proximas:
+        cap = db.query(Capacitacion).filter_by(id=sesion.capacitacion_id).first()
+        if cap:
+            notificacion_service.crear_notificacion(
+                db,
+                empresa_id=cap.empresa_id,
+                tipo="capacitacion_sesion_proxima_vencer",
+                titulo="Sesión de capacitación mañana",
+                descripcion=f"Sesión programada para mañana {sesion.fecha.strftime('%d/%m/%Y')}.",
+                modulo="capacitaciones",
+                url_destino=f"/capacitaciones?capacitacion={sesion.capacitacion_id}",
+            )
+    resumen["sesiones_proximas"] = len(sesiones_proximas)
+
+    # ── 4. Controles de riesgo ─────────────────────────────────────
+    controles_vencidos = (
+        db.query(MedidaControl)
+        .filter(
+            MedidaControl.fecha_limite < ahora,
+            MedidaControl.fecha_limite.isnot(None),
+            MedidaControl.estado != EstadoControlEnum.completada,
+        )
+        .all()
+    )
+    for control in controles_vencidos:
+        peligro = db.query(Peligro).filter_by(id=control.peligro_id).first()
+        if peligro:
+            notificacion_service.crear_notificacion(
+                db,
+                empresa_id=peligro.empresa_id,
+                tipo="riesgo_control_vencido",
+                titulo="Control de riesgo vencido",
+                descripcion=f"Medida de control sin implementar desde {control.fecha_limite.strftime('%d/%m/%Y')}.",
+                modulo="riesgos",
+                url_destino=f"/riesgos?riesgo={control.peligro_id}&control=1",
+            )
+    resumen["controles_vencidos"] = len(controles_vencidos)
+
+    controles_proximos = (
+        db.query(MedidaControl)
+        .filter(
+            MedidaControl.fecha_limite >= ahora,
+            MedidaControl.fecha_limite <= manana,
+            MedidaControl.fecha_limite.isnot(None),
+            MedidaControl.estado != EstadoControlEnum.completada,
+        )
+        .all()
+    )
+    for control in controles_proximos:
+        peligro = db.query(Peligro).filter_by(id=control.peligro_id).first()
+        if peligro:
+            notificacion_service.crear_notificacion(
+                db,
+                empresa_id=peligro.empresa_id,
+                tipo="riesgo_control_proximo_vencer",
+                titulo="Control de riesgo próximo a vencer",
+                descripcion=f"Medida de control vence mañana ({control.fecha_limite.strftime('%d/%m/%Y')}).",
+                modulo="riesgos",
+                url_destino=f"/riesgos?riesgo={control.peligro_id}&control=1",
+            )
+    resumen["controles_proximos"] = len(controles_proximos)
+
+    # ── 5. Hallazgos / No Conformidades ───────────────────────────
     ncs_vencidas = (
         db.query(NoConformidad)
         .filter(
@@ -191,16 +376,51 @@ def verificar_auditorias_vencidas(db: Session):
         )
         .all()
     )
-
     for nc in ncs_vencidas:
+        hallazgo = db.query(Hallazgo).filter_by(id=nc.hallazgo_id).first()
+        if hallazgo:
+            notificacion_service.crear_notificacion(
+                db,
+                empresa_id=db.query(Auditoria)
+                .filter_by(id=hallazgo.auditoria_id)
+                .first()
+                .empresa_id,
+                tipo="hallazgo_vencido",
+                titulo="Hallazgo/NC vencido sin cerrar",
+                descripcion=f"No conformidad sin cerrar desde {nc.fecha_limite.strftime('%d/%m/%Y')}.",
+                modulo="auditorias",
+                url_destino=f"/auditorias?auditoria={hallazgo.auditoria_id}&hallazgo=1",
+            )
         nc.estado = EstadoNCEnum.vencida
+    resumen["nc_vencidas"] = len(ncs_vencidas)
+
+    ncs_proximas = (
+        db.query(NoConformidad)
+        .filter(
+            NoConformidad.fecha_limite >= ahora,
+            NoConformidad.fecha_limite <= manana,
+            NoConformidad.estado.notin_([EstadoNCEnum.cerrada, EstadoNCEnum.vencida]),
+        )
+        .all()
+    )
+    for nc in ncs_proximas:
+        hallazgo = db.query(Hallazgo).filter_by(id=nc.hallazgo_id).first()
+        if hallazgo:
+            auditoria = db.query(Auditoria).filter_by(id=hallazgo.auditoria_id).first()
+            if auditoria:
+                notificacion_service.crear_notificacion(
+                    db,
+                    empresa_id=auditoria.empresa_id,
+                    tipo="hallazgo_proximo_vencer",
+                    titulo="Hallazgo/NC próximo a vencer",
+                    descripcion=f"No conformidad vence mañana ({nc.fecha_limite.strftime('%d/%m/%Y')}).",
+                    modulo="auditorias",
+                    url_destino=f"/auditorias?auditoria={hallazgo.auditoria_id}&hallazgo=1",
+                )
+    resumen["nc_proximas"] = len(ncs_proximas)
 
     db.commit()
-
-    return {
-        "auditorias_vencidas": len(auditorias_vencidas),
-        "nc_marcadas_vencidas": len(ncs_vencidas),
-    }
+    return resumen
 
 
 def update_no_conformidad(

@@ -55,7 +55,7 @@ def crear_peligro(
         titulo="Nuevo peligro identificado",
         descripcion=f"Se identificó un nuevo peligro: {datos.nombre[:80]}",
         modulo="riesgos",
-        url_destino="/riesgos",
+        url_destino=f"/riesgos?riesgo={peligro.id}",
     )
     db.commit()
     return peligro
