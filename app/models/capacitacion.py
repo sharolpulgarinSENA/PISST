@@ -1,4 +1,5 @@
 # app/models/capacitacion.py
+import enum
 import uuid
 from datetime import datetime, timezone
 
@@ -16,6 +17,20 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+
+
+class EstadoSesionEnum(str, enum.Enum):
+    programada = "programada"
+    realizada = "realizada"
+    no_realizada = "no_realizada"
+    cancelada = "cancelada"
+
+
+class EstadoAsistenciaEnum(str, enum.Enum):
+    presente = "presente"
+    ausente = "ausente"
+    justificado = "justificado"
+
 
 # ✅ Tabla intermedia capacitacion_areas (muchos a muchos)
 capacitacion_areas = Table(

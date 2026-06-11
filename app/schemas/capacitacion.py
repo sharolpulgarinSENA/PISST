@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from app.models.capacitacion import EstadoAsistenciaEnum
+
 # ── Área (respuesta embebida) ─────────────────────────────────────
 
 
@@ -77,7 +79,7 @@ class SesionUpdate(BaseModel):
 class AsistenciaCreate(BaseModel):
     sesion_id: UUID
     empleado_id: UUID
-    estado: Optional[str] = "presente"
+    estado: Optional[EstadoAsistenciaEnum] = EstadoAsistenciaEnum.presente
 
 
 class AsistenciaResponse(BaseModel):
