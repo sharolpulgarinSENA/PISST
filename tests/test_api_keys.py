@@ -112,7 +112,7 @@ def test_verificar_vencidas_con_api_key(client, db):
     )
     assert resp.status_code == 200
     assert "auditorias_vencidas" in resp.json()
-    assert "nc_marcadas_vencidas" in resp.json()
+    assert "nc_vencidas" in resp.json()
 
 
 def test_verificar_vencidas_con_api_key_invalida(client):

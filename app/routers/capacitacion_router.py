@@ -57,7 +57,7 @@ def crear_capacitacion(
         titulo="Nueva capacitación creada",
         descripcion=f"{datos.titulo} agregada al plan anual",
         modulo="capacitaciones",
-        url_destino="/capacitaciones",
+        url_destino=f"/capacitaciones?capacitacion={cap.id}",
     )
     db.commit()
     return cap
@@ -108,7 +108,7 @@ def crear_sesion(
         titulo="Sesión de capacitación programada",
         descripcion=f"Nueva sesión programada para el {datos.fecha.strftime('%d/%m/%Y')}",
         modulo="capacitaciones",
-        url_destino="/capacitaciones",
+        url_destino=f"/capacitaciones?capacitacion={sesion.capacitacion_id}",
     )
     db.commit()
     return sesion
@@ -144,7 +144,7 @@ def cambiar_estado_sesion(
             titulo=titulo,
             descripcion=f"La sesión fue marcada como {estado}",
             modulo="capacitaciones",
-            url_destino="/capacitaciones",
+            url_destino=f"/capacitaciones?capacitacion={sesion.capacitacion_id}",
         )
         db.commit()
     return sesion
@@ -171,7 +171,7 @@ def reprogramar_sesion(
         titulo="Sesión de capacitación reprogramada",
         descripcion="Una sesión fue reprogramada",
         modulo="capacitaciones",
-        url_destino="/capacitaciones",
+        url_destino=f"/capacitaciones?capacitacion={sesion.capacitacion_id}",
     )
     db.commit()
     return sesion

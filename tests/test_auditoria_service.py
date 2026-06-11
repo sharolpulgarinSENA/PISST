@@ -313,7 +313,7 @@ def test_verificar_marca_nc_vencidas(db, empresa):
     )
 
     resultado = auditoria_service.verificar_auditorias_vencidas(db)
-    assert resultado["nc_marcadas_vencidas"] >= 1
+    assert resultado["nc_vencidas"] >= 1
 
     db.refresh(nc)
     assert nc.estado == "vencida"
@@ -329,7 +329,7 @@ def test_verificar_vencidas_endpoint_ok(client, admin_headers):
     )
     assert resp.status_code == 200
     assert "auditorias_vencidas" in resp.json()
-    assert "nc_marcadas_vencidas" in resp.json()
+    assert "nc_vencidas" in resp.json()
 
 
 def test_verificar_vencidas_endpoint_token_invalido(client):

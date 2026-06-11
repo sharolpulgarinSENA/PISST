@@ -104,7 +104,7 @@ def cambiar_estado(
         titulo="Estado de reporte actualizado",
         descripcion=f"El incidente cambió a estado: {datos.estado}",
         modulo="reportes",
-        url_destino="/incidentes",
+        url_destino=f"/incidentes?reporte={incidente_id}",
     )
     db.commit()
     return incidente
@@ -175,7 +175,7 @@ def crear_investigacion(
         titulo="Investigación de incidente completada",
         descripcion="Se completó la investigación de causas de un incidente",
         modulo="incidentes",
-        url_destino="/incidentes",
+        url_destino=f"/incidentes?reporte={incidente_id}&tab=investigacion",
     )
     db.commit()
     return investigacion
@@ -216,7 +216,7 @@ def crear_accion_correctiva(
         titulo="Nueva acción correctiva",
         descripcion=f"Acción correctiva registrada: {datos.descripcion[:80]}",
         modulo="incidentes",
-        url_destino="/incidentes",
+        url_destino=f"/incidentes?reporte={incidente_id}&tab=acciones",
     )
     db.commit()
     return accion
@@ -244,7 +244,7 @@ def actualizar_accion_correctiva(
             titulo="Acción correctiva completada",
             descripcion="Una acción correctiva fue marcada como completada",
             modulo="incidentes",
-            url_destino="/incidentes",
+            url_destino=f"/incidentes?reporte={accion.incidente_id}&tab=acciones",
         )
         db.commit()
     return accion
