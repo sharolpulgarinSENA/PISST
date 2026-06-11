@@ -53,8 +53,9 @@ def enviar_mensaje(
     """
     cargo = current_user.cargo.nombre if current_user.cargo else "empleado general"
     area = current_user.area.nombre if current_user.area else "área general"
+    rol = current_user.role.value
 
-    resultado = chat_sasbot(mensaje=datos.mensaje, cargo=cargo, area=area)
+    resultado = chat_sasbot(mensaje=datos.mensaje, cargo=cargo, area=area, rol=rol)
 
     historial_entrada = ChatHistorial(
         mensaje=datos.mensaje, respuesta=resultado["respuesta"], user_id=current_user.id
