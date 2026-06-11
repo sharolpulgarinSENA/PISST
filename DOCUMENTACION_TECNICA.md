@@ -647,7 +647,31 @@ empresa   # empresa de prueba ya creada en BD
 usuario_sst  # usuario con rol SST ya creado en BD
 ```
 
-### 6.5 Flujo de Trabajo Git
+### 6.5 Jupyter Notebooks — Análisis de Datos
+
+Los notebooks están en la carpeta `notebooks/` y se usan para exploración y sustentación de datos.
+
+| Notebook | Contenido |
+|---|---|
+| `01_exploracion_incidentes.ipynb` | Distribución de incidentes por tipo, severidad y tendencia mensual |
+| `02_exploracion_riesgos.ipynb` | Peligros y controles por nivel de riesgo |
+| `03_exploracion_capacitaciones.ipynb` | Asistencia, aprobación y alertas de capacitaciones |
+
+**Cómo arrancar Jupyter:**
+
+```bash
+# 1. Activar el entorno virtual (Windows)
+venv\Scripts\activate
+
+# 2. Arrancar Jupyter
+jupyter notebook
+```
+
+Esto abre automáticamente el navegador en `http://localhost:8888`. Desde ahí navegá a la carpeta `notebooks/` y abrí el archivo `.ipynb` que necesites.
+
+> Si `jupyter` no está instalado: `pip install jupyter`
+
+### 6.6 Flujo de Trabajo Git
 
 ```bash
 # 1. Trabajar en tu rama
