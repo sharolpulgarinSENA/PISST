@@ -17,11 +17,23 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _column_exists(table: str, column: str) -> bool:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    return any(c["name"] == column for c in inspector.get_columns(table))
+
+
 def upgrade() -> None:
-    op.add_column("empresas", sa.Column("ciudad", sa.String(100), nullable=True))
-    op.add_column("empresas", sa.Column("direccion", sa.String(300), nullable=True))
-    op.add_column("empresas", sa.Column("telefono", sa.String(30), nullable=True))
-    op.add_column("users", sa.Column("tipo_vinculacion", sa.String(50), nullable=True))
+    if not _column_exists("empresas", "ciudad"):
+        op.add_column("empresas", sa.Column("ciudad", sa.String(100), nullable=True))
+    if not _column_exists("empresas", "direccion"):
+        op.add_column("empresas", sa.Column("direccion", sa.String(300), nullable=True))
+    if not _column_exists("empresas", "telefono"):
+        op.add_column("empresas", sa.Column("telefono", sa.String(30), nullable=True))
+    if not _column_exists("users", "tipo_vinculacion"):
+        op.add_column(
+            "users", sa.Column("tipo_vinculacion", sa.String(50), nullable=True)
+        )
 
 
 def downgrade() -> None:
