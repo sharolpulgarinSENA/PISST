@@ -67,7 +67,7 @@ def crear_auditoria(
         titulo="Nueva auditoría planificada",
         descripcion=f"Auditoría programada para el {datos.fecha_programada.strftime('%d/%m/%Y')}",
         modulo="auditorias",
-        url_destino="/auditorias",
+        url_destino=f"/auditorias?auditoria={auditoria.id}",
     )
     db.commit()
     return auditoria
@@ -121,7 +121,7 @@ def crear_hallazgo(
         titulo="Nuevo hallazgo registrado",
         descripcion=f"Hallazgo ({datos.clasificacion}): {datos.descripcion[:80]}",
         modulo="auditorias",
-        url_destino="/auditorias",
+        url_destino=f"/auditorias?auditoria={auditoria_id}&hallazgo=1",
     )
     db.commit()
     return hallazgo
