@@ -382,16 +382,16 @@ Protegidos con `X-Admin-Key` en el header.
 |---|---|---|
 | Lenguaje | Python | 3.12 |
 | Framework web | FastAPI | 0.136.x |
-| ORM | SQLAlchemy | 2.0.49 |
+| ORM | SQLAlchemy | 2.0.50 |
 | Validación | Pydantic v2 | 2.13.x |
-| Servidor ASGI | Uvicorn | 0.46.x |
+| Servidor ASGI | Uvicorn | 0.49.0 |
 | Autenticación | python-jose (JWT) | 3.5.0 |
 | Hashing contraseñas | passlib + bcrypt | 1.7.4 / 4.0.1 |
 | Migraciones BD | Alembic | 1.18.x |
 | Rate limiting | SlowAPI | 0.1.9 |
 | PDF | ReportLab | 4.5.x |
 | Excel | openpyxl | 3.1.5 |
-| Analítica de datos | Pandas | 3.0.3 |
+| Analítica de datos | Pandas | >=2.0.0 |
 | HTTP client | httpx | 0.28.x |
 | IA | Google Gemini (google-genai) | 2.2.0 |
 | Correo | Resend | 2.30.x |
@@ -556,6 +556,7 @@ Ver [.env.example](.env.example) para la lista completa. Variables críticas:
 | `CLOUDINARY_CLOUD_NAME` | Nombre del cloud en Cloudinary |
 | `CLOUDINARY_API_KEY` | API key de Cloudinary |
 | `CLOUDINARY_API_SECRET` | API secret de Cloudinary |
+| `BACKEND_URL` | URL pública del backend (requerida para cron jobs en producción) |
 
 ### 6.3 Migraciones de Base de Datos
 
@@ -609,13 +610,13 @@ Los tests usan **SQLite en memoria** — no requieren conexión a Neon ni variab
 
 | Archivo | Qué prueba | Tests |
 |---|---|---|
-| `tests/test_auth.py` | Endpoints HTTP de autenticación | 5 |
+| `tests/test_auth.py` | Endpoints HTTP de autenticación | 6 |
 | `tests/test_auth_service.py` | Lógica del servicio de auth: login, refresh, reset token seguro, empresa activa | 34 |
 | `tests/test_incidente_service.py` | Servicio de incidentes, investigaciones y acciones correctivas | 18 |
 | `tests/test_riesgo_service.py` | Servicio de peligros, evaluaciones y medidas de control | 18 |
-| `tests/test_capacitacion_service.py` | Servicio de capacitaciones, sesiones, asistencia y evaluaciones | 24 |
-| `tests/test_auditoria_service.py` | Servicio de auditorías, hallazgos y no conformidades | 18 |
-| `tests/test_usuario_service.py` | Servicio de usuarios — crear, filtrar, actualizar, área y cargo | 26 |
+| `tests/test_capacitacion_service.py` | Servicio de capacitaciones, sesiones, asistencia y evaluaciones | 30 |
+| `tests/test_auditoria_service.py` | Servicio de auditorías, hallazgos y no conformidades | 24 |
+| `tests/test_usuario_service.py` | Servicio de usuarios — crear, filtrar, actualizar, área y cargo | 20 |
 | `tests/test_admin_router.py` | Endpoints HTTP de administración con X-Admin-Key | 18 |
 | `tests/test_furat_service.py` | PDF FURAT con datos reales + helper `_obtener_datos_furat` | 10 |
 | `tests/test_metricas_service.py` | KPIs, dashboard, alertas, PDF y Excel ejecutivos | 20 |
@@ -624,7 +625,7 @@ Los tests usan **SQLite en memoria** — no requieren conexión a Neon ni variab
 | `tests/test_usuarios.py` | Endpoints HTTP de usuarios | 6 |
 | `tests/test_analytics_service.py` | Analytics: SQL aggregations, paginación, filtros de fecha, multi-tenancy | 16 |
 | `tests/test_api_keys.py` | CRUD de API keys y autenticación con X-API-Key | 14 |
-| `tests/test_perfil_notificaciones.py` | Perfil propio y notificaciones | 14 |
+| `tests/test_perfil_notificaciones.py` | Perfil propio y notificaciones | 15 |
 | `tests/test_routers.py` | Límites de paginación: 422 en exceso, 200 en válido — 6 endpoints | 15 |
 | `tests/test_schemas.py` | Validación Enum en schemas: tipo, estado, severidad, prioridad | 24 |
 | `tests/test_migrations.py` | Integridad estructural de migraciones Alembic (sin DB) | 10 |
@@ -706,7 +707,7 @@ X-Admin-Key: <ADMIN_SECRET_KEY>
 | Módulo | Prefijo | Roles permitidos |
 |---|---|---|
 | Autenticación | `/auth` | Público / Autenticado |
-| Usuarios | `/usuarios` | sst / Autenticado (perfil propio) |
+| Usuarios | `/usuarios` | sst / Autenticado (perfil propio: `GET /me`, `PATCH /me`, `PUT /me/foto`, `GET /me/actividad`) |
 | Incidentes | `/incidentes` | sst, empleado |
 | Riesgos | `/riesgos` | sst, gerencia |
 | Capacitaciones | `/capacitaciones` | sst, gerencia, empleado |
