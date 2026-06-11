@@ -657,6 +657,18 @@ Los notebooks están en la carpeta `notebooks/` y se usan para exploración y su
 | `02_exploracion_riesgos.ipynb` | Peligros y controles por nivel de riesgo |
 | `03_exploracion_capacitaciones.ipynb` | Asistencia, aprobación y alertas de capacitaciones |
 
+**Filtro por empresa (multi-tenant)**
+
+Cada notebook filtra los datos por empresa. Antes de arrancar, agregar al `.env`:
+
+```
+EMPRESA_ID=<uuid-de-la-empresa>
+```
+
+Para obtener el UUID: `SELECT id, nombre FROM empresas;` en Neon, o `GET /admin/empresas` en Swagger.
+
+> **Nota:** El contador "Total incidentes en BD" que aparece al conectar es global (toda la BD, sin filtro) — solo sirve para verificar la conexión. Los gráficos y análisis sí filtran por la empresa configurada.
+
 **Cómo arrancar Jupyter:**
 
 ```bash
@@ -667,7 +679,7 @@ venv\Scripts\activate
 jupyter notebook
 ```
 
-Esto abre automáticamente el navegador en `http://localhost:8888`. Desde ahí navegá a la carpeta `notebooks/` y abrí el archivo `.ipynb` que necesites.
+Esto abre automáticamente el navegador en `http://localhost:8888`. Desde ahí navegá a la carpeta `notebooks/` y abrí el archivo `.ipynb` que necesites. Ejecutar con **Kernel → Restart & Run All**.
 
 > Si `jupyter` no está instalado: `pip install jupyter`
 
