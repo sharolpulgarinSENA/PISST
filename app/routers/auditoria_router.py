@@ -2,7 +2,7 @@
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -42,8 +42,8 @@ def verificar_vencidas(
 
 @router.get("/", response_model=List[AuditoriaResponse])
 def listar_auditorias(
-    skip: int = 0,
-    limit: int = 50,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst", "gerencia")),
 ):

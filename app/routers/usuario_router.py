@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -82,8 +82,8 @@ async def actualizar_foto_perfil(
 
 @router.get("/me/actividad")
 def mi_actividad(
-    limit: int = 10,
-    offset: int = 0,
+    limit: int = Query(default=10, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -129,8 +129,8 @@ def mi_actividad(
 
 @router.get("/", response_model=List[UsuarioResponse])
 def listar_usuarios(
-    skip: int = 0,
-    limit: int = 50,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=30, ge=1, le=1000),
     activo: Optional[bool] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst")),

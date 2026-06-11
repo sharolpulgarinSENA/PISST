@@ -2,7 +2,7 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -32,8 +32,8 @@ router = APIRouter(prefix="/incidentes", tags=["Incidentes"])
 def listar_incidentes(
     estado: Optional[str] = None,
     tipo: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 50,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
