@@ -473,7 +473,32 @@ Protegidos con `X-Admin-Key` en el header.
 | CVEs | Dependencias auditadas con `pip-audit` y Dependabot activo |
 | Sesión única por dispositivo | `session_token` en JWT validado contra BD en cada request y en cambio de contraseña |
 
-### 5.3 Auditoría y Trazabilidad
+### 5.3 API Keys para servicios externos
+
+Las API Keys permiten que procesos automáticos (cron jobs, servicios externos) se autentiquen sin JWT.
+
+**Uso actual:** el cron job de cron-job.org que ejecuta `POST /auditorias/verificar-vencidas` diariamente usa una API Key en el header `X-API-Key: sk_...`.
+
+**Gestión:**
+
+| Acción | Endpoint |
+|---|---|
+| Crear nueva API Key | `POST /auth/api-keys` (solo admin) |
+| Revocar API Key | endpoint de revocación por ID |
+
+**Formato de la clave:** `sk_` + 60 chars hex, generados con `secrets.token_hex(30)`.
+
+**Ciclo de vida recomendado:**
+- Generar **una sola vez** por integración. No expira automáticamente.
+- **Rotar cada 90 días** como buena práctica de seguridad.
+- Si una clave se filtra o compromete, revocarla inmediatamente y generar una nueva.
+
+**Proceso de rotación:**
+1. `POST /auth/api-keys` → copiar la nueva clave `sk_...`
+2. Actualizar el header `X-API-Key` en cron-job.org con la nueva clave
+3. Revocar la clave anterior
+
+### 5.4 Auditoría y Trazabilidad
 
 - **Tabla `audit_logs`:** Registra automáticamente creación de usuarios, cambios de estado de incidentes y cierre de acciones correctivas
 - **Soft delete:** Entidades críticas usan campo `activo` → nunca se eliminan físicamente
