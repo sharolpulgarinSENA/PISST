@@ -37,9 +37,10 @@ def listar_incidentes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return incidente_service.get_all_incidentes(
+    incidentes = incidente_service.get_all_incidentes(
         db, current_user.empresa_id, estado, tipo, skip, limit
     )
+    return [IncidenteResponse.from_orm_with_creator(i) for i in incidentes]
 
 
 @router.post("/", response_model=IncidenteResponse, status_code=201)
@@ -75,9 +76,10 @@ def obtener_incidente(
     current_user: User = Depends(get_current_user),
 ):
     """Retorna el detalle completo de un incidente."""
-    return incidente_service.get_incidente_by_id(
+    incidente = incidente_service.get_incidente_by_id(
         db, incidente_id, current_user.empresa_id
     )
+    return IncidenteResponse.from_orm_with_creator(incidente)
 
 
 @router.patch("/{incidente_id}/estado", response_model=IncidenteResponse)
