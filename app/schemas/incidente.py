@@ -5,6 +5,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from app.models.accion_correctiva import EstadoAccionEnum, PrioridadAccionEnum
+from app.models.incidente import EstadoIncidenteEnum, SeveridadEnum, TipoIncidenteEnum
+
 # ── Schemas de Lesión ─────────────────────────────────────────────
 
 
@@ -43,8 +46,8 @@ class TestigoResponse(BaseModel):
 
 
 class IncidenteCreate(BaseModel):
-    tipo: str  # accidente, incidente, cuasi_accidente, condicion_insegura
-    severidad: str  # sin_lesion, leve, moderada, grave, mortal
+    tipo: TipoIncidenteEnum
+    severidad: SeveridadEnum
     fecha: datetime
     lugar: str
     descripcion: str
@@ -56,11 +59,11 @@ class IncidenteCreate(BaseModel):
 class IncidenteUpdate(BaseModel):
     lugar: Optional[str] = None
     descripcion: Optional[str] = None
-    severidad: Optional[str] = None
+    severidad: Optional[SeveridadEnum] = None
 
 
 class IncidenteEstadoUpdate(BaseModel):
-    estado: str  # borrador, en_revision, abierto, en_investigacion, cerrado
+    estado: EstadoIncidenteEnum
 
 
 class IncidenteResponse(BaseModel):
@@ -120,15 +123,15 @@ class InvestigacionResponse(BaseModel):
 
 class AccionCorrectivaCreate(BaseModel):
     descripcion: str
-    prioridad: Optional[str] = "media"
+    prioridad: Optional[PrioridadAccionEnum] = PrioridadAccionEnum.media
     fecha_limite: datetime
     responsable_id: UUID
 
 
 class AccionCorrectivaUpdate(BaseModel):
     descripcion: Optional[str] = None
-    prioridad: Optional[str] = None
-    estado: Optional[str] = None
+    prioridad: Optional[PrioridadAccionEnum] = None
+    estado: Optional[EstadoAccionEnum] = None
     evidencia: Optional[str] = None
     fecha_limite: Optional[datetime] = None
 
