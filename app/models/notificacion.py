@@ -18,6 +18,7 @@ class Notificacion(Base):
     descripcion = Column(Text, nullable=False)
     modulo = Column(String(60), nullable=False)
     url_destino = Column(String(300), nullable=False)
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     leido = Column(Boolean, default=False, nullable=False)
     fecha = Column(
         DateTime,

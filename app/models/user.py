@@ -52,6 +52,7 @@ class User(Base):
 
     telefono = Column(String(30), nullable=True)
     foto_url = Column(String(500), nullable=True)
+    tipo_vinculacion = Column(String(50), nullable=True)
 
     intentos_fallidos = Column(Integer, default=0, nullable=False)
     bloqueado_hasta = Column(DateTime, nullable=True)

@@ -1,21 +1,24 @@
 # app/routers/admin_router.py
 import logging
-import os
 import secrets
 import string
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.deps import require_role
 from app.core.security import get_password_hash
 from app.models.empresa import Empresa
 from app.models.user import RoleEnum, User
-from app.services.email_service import enviar_correo_bienvenida
+from app.services.email_service import (
+    enviar_correo_bienvenida,
+    enviar_correo_reset_admin,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,18 +34,14 @@ def _mask_email(email: str) -> str:
 router = APIRouter(prefix="/admin", tags=["Administración"])
 
 
-# ── Clave secreta para proteger los endpoints admin ───────────────
-def verificar_clave_admin(x_admin_key: str = Header(...)):
-    clave_correcta = os.getenv("ADMIN_SECRET_KEY")
-    if not clave_correcta or x_admin_key != clave_correcta:
-        raise HTTPException(status_code=403, detail="Clave admin incorrecta")
-
-
 # ── Schemas ───────────────────────────────────────────────────────
 class EmpresaCreate(BaseModel):
     nombre: str
     nit: str
     sector: Optional[str] = None
+    ciudad: Optional[str] = None
+    direccion: Optional[str] = None
+    telefono: Optional[str] = None
 
 
 class SSTCreate(BaseModel):
@@ -81,7 +80,7 @@ class UsuarioAdminResponse(BaseModel):
 def crear_empresa(
     datos: EmpresaCreate,
     db: Session = Depends(get_db),
-    _: str = Depends(verificar_clave_admin),
+    _: User = Depends(require_role("admin")),
 ):
     """
     Crea una nueva empresa en el sistema.
@@ -90,7 +89,14 @@ def crear_empresa(
     if db.query(Empresa).filter(Empresa.nit == datos.nit).first():
         raise HTTPException(status_code=400, detail="Ya existe una empresa con ese NIT")
 
-    empresa = Empresa(nombre=datos.nombre, nit=datos.nit, sector=datos.sector)
+    empresa = Empresa(
+        nombre=datos.nombre,
+        nit=datos.nit,
+        sector=datos.sector,
+        ciudad=datos.ciudad,
+        direccion=datos.direccion,
+        telefono=datos.telefono,
+    )
     db.add(empresa)
     db.commit()
     db.refresh(empresa)
@@ -105,7 +111,7 @@ def crear_empresa(
 
 @router.get("/empresas", response_model=List[EmpresaListItem])
 def listar_empresas(
-    db: Session = Depends(get_db), _: str = Depends(verificar_clave_admin)
+    db: Session = Depends(get_db), _: User = Depends(require_role("admin"))
 ):
     """
     Lista todas las empresas registradas en el sistema.
@@ -128,7 +134,7 @@ def listar_empresas(
 def crear_usuario_sst(
     datos: SSTCreate,
     db: Session = Depends(get_db),
-    _: str = Depends(verificar_clave_admin),
+    _: User = Depends(require_role("admin")),
 ):
     """
     Crea el primer usuario SST de una empresa.
@@ -194,7 +200,7 @@ def crear_usuario_sst(
 def crear_usuario_gerencia(
     datos: SSTCreate,
     db: Session = Depends(get_db),
-    _: str = Depends(verificar_clave_admin),
+    _: User = Depends(require_role("admin")),
 ):
     """
     Crea un usuario de Gerencia para una empresa.
@@ -253,10 +259,39 @@ def crear_usuario_gerencia(
     }
 
 
+@router.post("/usuarios/{usuario_id}/reset-password")
+def reset_password_usuario(
+    usuario_id: UUID,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role("admin")),
+):
+    """
+    Genera un token de reset y envía el enlace por email al usuario.
+    No envía contraseña — el usuario establece la suya al hacer clic.
+    """
+    from app.services.auth_service import crear_reset_token
+
+    user = db.query(User).filter(User.id == usuario_id, User.activo == True).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    token = crear_reset_token(user.id, db)
+
+    enviado = enviar_correo_reset_admin(
+        email_destino=user.email,
+        nombre=user.nombre,
+        token=token,
+    )
+    if not enviado:
+        logger.warning(f"Correo reset no enviado a {_mask_email(user.email)}")
+
+    return {"mensaje": "Enlace de reset enviado", "usuario_id": str(user.id)}
+
+
 @router.post("/limpiar-tokens")
 def limpiar_tokens_caducados(
     db: Session = Depends(get_db),
-    _: str = Depends(verificar_clave_admin),
+    _: User = Depends(require_role("admin")),
 ):
     """
     Limpia refresh tokens y session tokens caducados de todos los usuarios.

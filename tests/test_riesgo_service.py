@@ -147,7 +147,7 @@ def test_update_medida_control_sin_evidencia_falla(db, empresa):
     )
     with pytest.raises(HTTPException) as exc:
         riesgo_service.update_medida_control(
-            db, medida.id, MedidaControlUpdate(estado="completada")
+            db, medida.id, empresa.id, MedidaControlUpdate(estado="completada")
         )
     assert exc.value.status_code == 400
 
@@ -163,16 +163,17 @@ def test_update_medida_control_completada(db, empresa):
     actualizada = riesgo_service.update_medida_control(
         db,
         medida.id,
+        empresa.id,
         MedidaControlUpdate(estado="completada", evidencia="Foto del letrero"),
     )
     assert actualizada.estado == "completada"
 
 
-def test_update_medida_control_no_encontrada(db):
+def test_update_medida_control_no_encontrada(db, empresa):
     from fastapi import HTTPException
 
     with pytest.raises(HTTPException) as exc:
         riesgo_service.update_medida_control(
-            db, uuid.uuid4(), MedidaControlUpdate(descripcion="X")
+            db, uuid.uuid4(), empresa.id, MedidaControlUpdate(descripcion="X")
         )
     assert exc.value.status_code == 404

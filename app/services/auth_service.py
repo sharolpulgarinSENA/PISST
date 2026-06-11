@@ -109,6 +109,7 @@ async def login(email: str, password: str, recaptcha_token: str, db: Session) ->
     return {
         "access_token": access_token,
         "refresh_token": nuevo_refresh_token,
+        "id": str(user.id),
         "role": user.role.value,
         "nombre": user.nombre,
         "debe_cambiar_password": user.debe_cambiar_password,
@@ -222,6 +223,8 @@ def cambiar_password(
 
 
 def refrescar_token(refresh_token: str, db: Session) -> dict:
+    from app.models.empresa import Empresa
+
     user = (
         db.query(User)
         .filter(User.refresh_token == refresh_token, User.activo == True)
@@ -236,11 +239,56 @@ def refrescar_token(refresh_token: str, db: Session) -> dict:
     ).replace(tzinfo=None):
         raise HTTPException(status_code=401, detail="Refresh token expirado")
 
+    if user.empresa_id:
+        empresa = db.query(Empresa).filter(Empresa.id == user.empresa_id).first()
+        if not empresa or not empresa.activo:
+            raise HTTPException(status_code=401, detail="Empresa desactivada")
+
     nuevo_access_token = create_access_token(
         {"sub": str(user.id), "role": user.role.value, "sid": str(user.session_token)}
     )
 
     return {"access_token": nuevo_access_token, "token_type": "bearer"}
+
+
+def crear_reset_token(usuario_id, db: Session) -> str:
+    from app.models.reset_token import ResetToken
+
+    token = secrets.token_hex(32)  # 64 caracteres hex
+    expira = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=24)
+    rt = ResetToken(usuario_id=usuario_id, token=token, expira_en=expira)
+    db.add(rt)
+    db.commit()
+    return token
+
+
+def verificar_reset_token(token: str, db: Session):
+    from app.models.reset_token import ResetToken
+
+    rt = db.query(ResetToken).filter(ResetToken.token == token).first()
+    if not rt:
+        raise HTTPException(status_code=400, detail="Token inválido")
+    if rt.usado:
+        raise HTTPException(status_code=400, detail="Token ya utilizado")
+    if rt.expira_en < datetime.now(timezone.utc).replace(tzinfo=None):
+        raise HTTPException(status_code=400, detail="Token expirado")
+    return rt
+
+
+def usar_reset_token(token: str, nueva_password: str, db: Session) -> dict:
+    rt = verificar_reset_token(token, db)
+
+    validar_fortaleza_password(nueva_password)
+
+    user = db.query(User).filter(User.id == rt.usuario_id, User.activo == True).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    user.password_hash = get_password_hash(nueva_password)
+    user.debe_cambiar_password = False
+    rt.usado = True
+    db.commit()
+    return {"mensaje": "Contraseña actualizada exitosamente"}
 
 
 def logout(refresh_token: str, db: Session) -> dict:

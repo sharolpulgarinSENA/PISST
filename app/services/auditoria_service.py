@@ -123,8 +123,18 @@ def get_progreso_auditoria(db: Session, auditoria_id: UUID, empresa_id: UUID):
 # ── No Conformidades ──────────────────────────────────────────────
 
 
-def create_no_conformidad(db: Session, hallazgo_id: UUID, datos: NoConformidadCreate):
-    hallazgo = db.query(Hallazgo).filter(Hallazgo.id == hallazgo_id).first()
+def create_no_conformidad(
+    db: Session, hallazgo_id: UUID, datos: NoConformidadCreate, empresa_id: UUID
+):
+    hallazgo = (
+        db.query(Hallazgo)
+        .join(Hallazgo.auditoria)
+        .filter(
+            Hallazgo.id == hallazgo_id,
+            Auditoria.empresa_id == empresa_id,
+        )
+        .first()
+    )
     if not hallazgo:
         raise HTTPException(status_code=404, detail="Hallazgo no encontrado")
 
@@ -193,8 +203,19 @@ def verificar_auditorias_vencidas(db: Session):
     }
 
 
-def update_no_conformidad(db: Session, nc_id: UUID, datos: NoConformidadUpdate):
-    nc = db.query(NoConformidad).filter(NoConformidad.id == nc_id).first()
+def update_no_conformidad(
+    db: Session, nc_id: UUID, datos: NoConformidadUpdate, empresa_id: UUID
+):
+    nc = (
+        db.query(NoConformidad)
+        .join(NoConformidad.hallazgo)
+        .join(Hallazgo.auditoria)
+        .filter(
+            NoConformidad.id == nc_id,
+            Auditoria.empresa_id == empresa_id,
+        )
+        .first()
+    )
     if not nc:
         raise HTTPException(status_code=404, detail="No conformidad no encontrada")
 

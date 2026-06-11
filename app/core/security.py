@@ -66,10 +66,9 @@ def create_access_token(data: dict) -> str:
     Se envía al frontend cuando el usuario hace login exitoso.
     """
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
-        minutes=EXPIRE_MINUTES
-    )
-    to_encode.update({"exp": expire})
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    expire = now + timedelta(minutes=EXPIRE_MINUTES)
+    to_encode.update({"exp": expire, "iat": now})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 

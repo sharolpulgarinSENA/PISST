@@ -195,7 +195,29 @@ def cambiar_estado_sesion(db: Session, sesion_id: UUID, empresa_id: UUID, estado
 # ── Asistencia ────────────────────────────────────────────────────
 
 
-def registrar_asistencia(db: Session, datos: AsistenciaCreate):
+def registrar_asistencia(db: Session, datos: AsistenciaCreate, empresa_id: UUID):
+    # Verificar que la sesión pertenece a la empresa
+    sesion = (
+        db.query(SesionCapacitacion)
+        .join(SesionCapacitacion.capacitacion)
+        .filter(
+            SesionCapacitacion.id == datos.sesion_id,
+            Capacitacion.empresa_id == empresa_id,
+        )
+        .first()
+    )
+    if not sesion:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+
+    # Verificar que el empleado pertenece a la empresa
+    empleado = (
+        db.query(User)
+        .filter(User.id == datos.empleado_id, User.empresa_id == empresa_id)
+        .first()
+    )
+    if not empleado:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+
     existe = (
         db.query(Asistencia)
         .filter(
@@ -220,11 +242,30 @@ def registrar_asistencia(db: Session, datos: AsistenciaCreate):
     return asistencia
 
 
-def get_asistencia_by_sesion(db: Session, sesion_id: UUID):
+def get_asistencia_by_sesion(db: Session, sesion_id: UUID, empresa_id: UUID):
+    sesion = (
+        db.query(SesionCapacitacion)
+        .join(SesionCapacitacion.capacitacion)
+        .filter(
+            SesionCapacitacion.id == sesion_id,
+            Capacitacion.empresa_id == empresa_id,
+        )
+        .first()
+    )
+    if not sesion:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
     return db.query(Asistencia).filter(Asistencia.sesion_id == sesion_id).all()
 
 
-def get_historial_empleado(db: Session, empleado_id: UUID):
+def get_historial_empleado(db: Session, empleado_id: UUID, empresa_id: UUID):
+    empleado = (
+        db.query(User)
+        .filter(User.id == empleado_id, User.empresa_id == empresa_id)
+        .first()
+    )
+    if not empleado:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+
     asistencias = (
         db.query(Asistencia)
         .filter(Asistencia.empleado_id == empleado_id)
@@ -250,7 +291,12 @@ def get_historial_empleado(db: Session, empleado_id: UUID):
                     {
                         "id": str(p.id),
                         "texto": p.texto,
-                        "opciones": [p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d],
+                        "opciones": [
+                            {"clave": "a", "texto": p.opcion_a},
+                            {"clave": "b", "texto": p.opcion_b},
+                            {"clave": "c", "texto": p.opcion_c},
+                            {"clave": "d", "texto": p.opcion_d},
+                        ],
                     }
                     for p in evaluacion.preguntas
                 ],
@@ -316,10 +362,17 @@ def create_evaluacion(db: Session, datos: EvaluacionCreate):
 
 
 def responder_evaluacion(
-    db: Session, datos: ResponderEvaluacionRequest, empleado_id: UUID
+    db: Session, datos: ResponderEvaluacionRequest, empleado_id: UUID, empresa_id: UUID
 ):
     evaluacion = (
-        db.query(Evaluacion).filter(Evaluacion.id == datos.evaluacion_id).first()
+        db.query(Evaluacion)
+        .join(Evaluacion.sesion)
+        .join(SesionCapacitacion.capacitacion)
+        .filter(
+            Evaluacion.id == datos.evaluacion_id,
+            Capacitacion.empresa_id == empresa_id,
+        )
+        .first()
     )
     if not evaluacion:
         raise HTTPException(status_code=404, detail="Evaluación no encontrada")
@@ -332,7 +385,18 @@ def responder_evaluacion(
         if not pregunta:
             continue
 
-        es_correcta = pregunta.respuesta_correcta == resp.respuesta_dada
+        opciones_map = {
+            "a": pregunta.opcion_a,
+            "b": pregunta.opcion_b,
+            "c": pregunta.opcion_c,
+            "d": pregunta.opcion_d,
+        }
+        texto_correcto = opciones_map.get(pregunta.respuesta_correcta, "")
+        respuesta_norm = resp.respuesta_dada.strip().lower()
+        es_correcta = (
+            respuesta_norm == pregunta.respuesta_correcta
+            or respuesta_norm == texto_correcto.strip().lower()
+        )
         if es_correcta:
             correctas += 1
 
