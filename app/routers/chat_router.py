@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -70,8 +70,8 @@ def enviar_mensaje(
 
 @router.get("/historial")
 def obtener_historial(
-    pagina: int = 1,
-    limite: int = 20,
+    pagina: int = Query(default=1, ge=1),
+    limite: int = Query(default=20, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
