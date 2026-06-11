@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.accion_correctiva import AccionCorrectiva
 from app.models.incidente import EstadoIncidenteEnum, Incidente
@@ -29,7 +29,11 @@ def get_all_incidentes(
     skip: int = 0,
     limit: int = 50,
 ):
-    query = db.query(Incidente).filter(Incidente.empresa_id == empresa_id)
+    query = (
+        db.query(Incidente)
+        .options(joinedload(Incidente.reportado_por))
+        .filter(Incidente.empresa_id == empresa_id)
+    )
     if estado:
         query = query.filter(Incidente.estado == estado)
     if tipo:
@@ -43,6 +47,7 @@ def get_incidente_by_id(db: Session, incidente_id: UUID, empresa_id: UUID):
     """Retorna un incidente específico verificando que pertenece a la empresa."""
     incidente = (
         db.query(Incidente)
+        .options(joinedload(Incidente.reportado_por))
         .filter(Incidente.id == incidente_id, Incidente.empresa_id == empresa_id)
         .first()
     )

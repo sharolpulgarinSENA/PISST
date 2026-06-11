@@ -80,8 +80,18 @@ class IncidenteResponse(BaseModel):
     trabajador_afectado_id: Optional[UUID]
     lesion: Optional[LesionResponse]
     testigos: list[TestigoResponse]
+    creado_por_nombre: Optional[str] = None
+    creado_por_rol: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_orm_with_creator(cls, incidente) -> "IncidenteResponse":
+        obj = cls.model_validate(incidente)
+        if incidente.reportado_por:
+            obj.creado_por_nombre = incidente.reportado_por.nombre
+            obj.creado_por_rol = incidente.reportado_por.role.value
+        return obj
 
 
 # ── Schemas de Investigación ──────────────────────────────────────

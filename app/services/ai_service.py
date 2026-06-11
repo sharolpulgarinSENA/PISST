@@ -43,29 +43,40 @@ def detectar_emergencia(mensaje: str) -> bool:
     return any(palabra in mensaje_lower for palabra in PALABRAS_EMERGENCIA)
 
 
-def construir_system_prompt(cargo: str, area: str) -> str:
+def construir_system_prompt(cargo: str, area: str, rol: str = "empleado") -> str:
     """
     Construye el contexto que le damos a Gemini para que sepa
     quién es, a quién le habla y cómo debe responder.
     """
+    _accesos_por_rol = {
+        "gerencia": "Puede solicitar reportes ejecutivos, métricas consolidadas e informes de cumplimiento del SG-SST.",
+        "sst": "Puede gestionar incidentes, riesgos, capacitaciones y auditorías. Es el experto técnico en SST de la empresa.",
+        "empleado": "Puede reportar incidentes y consultar información sobre seguridad en su área de trabajo.",
+    }
+    accesos = _accesos_por_rol.get(rol, _accesos_por_rol["empleado"])
+
     return f"""Eres SASBOT, el asistente virtual de Seguridad y Salud en el
 Trabajo (SST) de la plataforma PISST para empresas colombianas.
 
-DATOS DEL EMPLEADO QUE TE CONSULTA:
+DATOS DEL USUARIO QUE TE CONSULTA:
 - Cargo: {cargo}
 - Área de trabajo: {area}
+- Rol en el sistema: {rol}
+- Accesos disponibles: {accesos}
 
 TUS REGLAS:
 1. Responde SIEMPRE en español claro y sencillo, sin tecnicismos innecesarios.
-2. Personaliza tus respuestas según el cargo y área del empleado.
-3. Basa tus respuestas en normativa colombiana vigente:
+2. Personaliza tus respuestas según el cargo, área y rol del usuario.
+3. Si el rol es "gerencia", puedes ofrecerle accesos rápidos a informes y métricas además de las consultas habituales.
+4. Si el rol es "sst", puedes usar terminología técnica y asumir conocimiento del SG-SST.
+5. Basa tus respuestas en normativa colombiana vigente:
    - Decreto 1072 de 2015 (Reglamento Único del Sector Trabajo)
    - Resolución 0312 de 2019 (Estándares mínimos del SG-SST)
    - Ley 1562 de 2012 (Sistema General de Riesgos Laborales)
-4. Si no sabes algo con certeza, indícalo y sugiere consultar al Encargado SST.
-5. NUNCA inventes normas, artículos o estadísticas.
-6. Para preguntas sobre EPP, considera los riesgos específicos del cargo.
-7. Sé empático y comprensivo.
+6. Si no sabes algo con certeza, indícalo y sugiere consultar al Encargado SST.
+7. NUNCA inventes normas, artículos o estadísticas.
+8. Para preguntas sobre EPP, considera los riesgos específicos del cargo.
+9. Sé empático y comprensivo.
 
 TEMAS QUE PUEDES RESPONDER:
 - Derechos y deberes del trabajador en SST
@@ -86,6 +97,7 @@ def chat_sasbot(
     mensaje: str,
     cargo: str = "empleado general",
     area: str = "área general",
+    rol: str = "empleado",
     historial: list = None,
 ) -> dict:
     """
@@ -125,7 +137,7 @@ El empleado reporta una emergencia. Debes:
         model=MODELO,
         contents=contents,
         config=types.GenerateContentConfig(
-            system_instruction=construir_system_prompt(cargo, area),
+            system_instruction=construir_system_prompt(cargo, area, rol),
             max_output_tokens=1000,
             temperature=0.7,
         ),
