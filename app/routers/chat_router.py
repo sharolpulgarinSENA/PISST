@@ -2,8 +2,19 @@
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -20,6 +31,8 @@ from app.services.ai_service import analizar_archivo_sasbot, chat_sasbot
 from app.services.email_service import enviar_escalar_coordinador
 
 router = APIRouter(prefix="/chat", tags=["SASBOT - Chat IA"])
+
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Schemas ───────────────────────────────────────────────────────
@@ -41,7 +54,9 @@ class ReporteRapidoRequest(BaseModel):
 
 
 @router.post("/mensaje")
+@limiter.limit("20/minute")
 def enviar_mensaje(
+    request: Request,
     datos: MensajeRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
