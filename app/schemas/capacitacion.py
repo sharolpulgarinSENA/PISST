@@ -30,11 +30,10 @@ class CapacitacionCreate(BaseModel):
 
 class CapacitacionUpdate(BaseModel):
     activo: Optional[bool] = None
-    titulo: Optional[str] = None  # ✅ nuevo
-    objetivos: Optional[str] = None  # ✅ nuevo
-    duracion_horas: Optional[int] = (
-        None  # ✅ nuevo         # ✅ nuevo — para suspender/activar
-    )
+    titulo: Optional[str] = None
+    objetivos: Optional[str] = None
+    duracion_horas: Optional[int] = None
+    area_ids: Optional[List[UUID]] = None
 
 
 class CapacitacionResponse(BaseModel):
