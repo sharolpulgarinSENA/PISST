@@ -42,7 +42,7 @@ def listar_capacitaciones(
     )
 
 
-@router.post("/", status_code=201)
+@router.post("/", response_model=CapacitacionResponse, status_code=201)
 def crear_capacitacion(
     datos: CapacitacionCreate,
     db: Session = Depends(get_db),
@@ -93,7 +93,7 @@ def cobertura_capacitaciones(
 # ── Sesiones ──────────────────────────────────────────────────────
 
 
-@router.post("/sesiones", status_code=201)
+@router.post("/sesiones", response_model=SesionResponse, status_code=201)
 def crear_sesion(
     datos: SesionCreate,
     db: Session = Depends(get_db),
