@@ -73,6 +73,10 @@ def update_capacitacion(db: Session, capacitacion_id: UUID, empresa_id: UUID, da
         cap.objetivos = datos.objetivos
     if datos.duracion_horas is not None:
         cap.duracion_horas = datos.duracion_horas
+    if datos.area_ids is not None:
+        from app.models.area import Area
+
+        cap.areas = db.query(Area).filter(Area.id.in_(datos.area_ids)).all()
 
     db.commit()
     db.refresh(cap)
