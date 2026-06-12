@@ -381,3 +381,178 @@ def test_get_cobertura_sesion_realizada_cuenta(db, empresa):
     assert resultado["total"] >= 1
     assert resultado["completadas"] >= 1
     assert resultado["porcentaje"] > 0
+
+
+# ── create_capacitacion con area_ids (líneas 48-49) ────────────────
+
+
+def test_create_capacitacion_con_area_ids(db, empresa):
+    from app.models.area import Area
+
+    area = Area(nombre="Área test cov", empresa_id=empresa.id)
+    db.add(area)
+    db.commit()
+    db.refresh(area)
+
+    cap = make_capacitacion(db, empresa, area_ids=[area.id])
+    assert len(cap.areas) == 1
+    assert cap.areas[0].id == area.id
+
+
+# ── update_capacitacion — ramas activo / objetivos / duracion (líneas 69, 73, 75) ──
+
+
+def test_update_capacitacion_activo(db, empresa):
+    cap = make_capacitacion(db, empresa)
+    actualizada = capacitacion_service.update_capacitacion(
+        db, cap.id, empresa.id, CapacitacionUpdate(activo=False)
+    )
+    assert actualizada.activo is False
+
+
+def test_update_capacitacion_objetivos_y_duracion(db, empresa):
+    cap = make_capacitacion(db, empresa)
+    actualizada = capacitacion_service.update_capacitacion(
+        db,
+        cap.id,
+        empresa.id,
+        CapacitacionUpdate(objetivos="Nuevos objetivos", duracion_horas=8),
+    )
+    assert actualizada.objetivos == "Nuevos objetivos"
+    assert actualizada.duracion_horas == 8
+
+
+# ── registrar_asistencia — sesión y empleado no encontrados (líneas 214, 223) ──
+
+
+def test_registrar_asistencia_sesion_inexistente(db, empresa, usuario_sst):
+    from fastapi import HTTPException
+
+    datos = AsistenciaCreate(
+        sesion_id=uuid.uuid4(), empleado_id=usuario_sst.id, estado="presente"
+    )
+    with pytest.raises(HTTPException) as exc:
+        capacitacion_service.registrar_asistencia(db, datos, empresa.id)
+    assert exc.value.status_code == 404
+
+
+def test_registrar_asistencia_empleado_inexistente(db, empresa):
+    from fastapi import HTTPException
+
+    cap = make_capacitacion(db, empresa)
+    sesion = make_sesion(db, empresa, cap)
+    datos = AsistenciaCreate(
+        sesion_id=sesion.id, empleado_id=uuid.uuid4(), estado="presente"
+    )
+    with pytest.raises(HTTPException) as exc:
+        capacitacion_service.registrar_asistencia(db, datos, empresa.id)
+    assert exc.value.status_code == 404
+
+
+# ── get_asistencia_by_sesion — sesión no encontrada (línea 260) ────
+
+
+def test_get_asistencia_sesion_inexistente(db, empresa):
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc:
+        capacitacion_service.get_asistencia_by_sesion(db, uuid.uuid4(), empresa.id)
+    assert exc.value.status_code == 404
+
+
+# ── get_historial_empleado — empleado no encontrado (línea 271) ────
+
+
+def test_get_historial_empleado_inexistente(db, empresa):
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc:
+        capacitacion_service.get_historial_empleado(db, uuid.uuid4(), empresa.id)
+    assert exc.value.status_code == 404
+
+
+# ── get_historial_empleado con evaluacion respondida (líneas 290-319) ──
+
+
+def test_get_historial_empleado_con_evaluacion_aprobada(db, empresa, usuario_sst):
+    cap = make_capacitacion(db, empresa)
+    sesion = make_sesion(db, empresa, cap)
+    capacitacion_service.registrar_asistencia(
+        db,
+        AsistenciaCreate(
+            sesion_id=sesion.id, empleado_id=usuario_sst.id, estado="presente"
+        ),
+        empresa.id,
+    )
+    evaluacion = make_evaluacion(db, sesion)
+    pregunta = evaluacion.preguntas[0]
+    capacitacion_service.responder_evaluacion(
+        db,
+        ResponderEvaluacionRequest(
+            evaluacion_id=evaluacion.id,
+            respuestas=[RespuestaCreate(pregunta_id=pregunta.id, respuesta_dada="c")],
+        ),
+        usuario_sst.id,
+        empresa.id,
+    )
+    historial = capacitacion_service.get_historial_empleado(
+        db, usuario_sst.id, empresa.id
+    )
+    assert len(historial) >= 1
+    entrada = next(h for h in historial if h["evaluacion_id"] == str(evaluacion.id))
+    assert entrada["evaluacion"] is not None
+    assert entrada["resultado"]["aprobado"] is True
+
+
+# ── responder_evaluacion — pregunta_id inválido salta continue (línea 390) ──
+
+
+def test_responder_evaluacion_pregunta_inexistente_se_salta(db, empresa, usuario_sst):
+    cap = make_capacitacion(db, empresa)
+    sesion = make_sesion(db, empresa, cap)
+    evaluacion = make_evaluacion(db, sesion)
+
+    resultado = capacitacion_service.responder_evaluacion(
+        db,
+        ResponderEvaluacionRequest(
+            evaluacion_id=evaluacion.id,
+            respuestas=[RespuestaCreate(pregunta_id=uuid.uuid4(), respuesta_dada="a")],
+        ),
+        usuario_sst.id,
+        empresa.id,
+    )
+    assert resultado["puntaje_final"] == 0
+
+
+# ── generar_certificado (líneas 468-581) ──────────────────────────
+
+
+def test_generar_certificado_ok(db, empresa, usuario_sst):
+    cap = make_capacitacion(db, empresa)
+    sesion = make_sesion(db, empresa, cap)
+    evaluacion = make_evaluacion(db, sesion)
+    pregunta = evaluacion.preguntas[0]
+    capacitacion_service.responder_evaluacion(
+        db,
+        ResponderEvaluacionRequest(
+            evaluacion_id=evaluacion.id,
+            respuestas=[RespuestaCreate(pregunta_id=pregunta.id, respuesta_dada="c")],
+        ),
+        usuario_sst.id,
+        empresa.id,
+    )
+    buffer = capacitacion_service.generar_certificado(db, evaluacion.id, usuario_sst.id)
+    contenido = buffer.read()
+    assert contenido[:4] == b"%PDF"
+
+
+def test_generar_certificado_no_aprobado_lanza_404(db, empresa, usuario_sst):
+    from fastapi import HTTPException
+
+    cap = make_capacitacion(db, empresa)
+    sesion = make_sesion(db, empresa, cap)
+    evaluacion = make_evaluacion(db, sesion)
+
+    with pytest.raises(HTTPException) as exc:
+        capacitacion_service.generar_certificado(db, evaluacion.id, usuario_sst.id)
+    assert exc.value.status_code == 404
