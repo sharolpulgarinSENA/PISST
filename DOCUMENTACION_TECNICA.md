@@ -1,6 +1,6 @@
 # Documentación Técnica — PISST
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
-**Versión:** 1.9 | **Fecha:** 2026-06-10 | **Estado:** Producción
+**Versión:** 2.0 | **Fecha:** 2026-06-11 | **Estado:** Producción
 
 ---
 
@@ -62,8 +62,8 @@ El sistema implementa **control de acceso basado en roles (RBAC)** con 4 niveles
 - **Frontend:** En producción en Vercel ✅
 - **Base de datos:** Neon PostgreSQL (cloud) ✅
 - **CI/CD:** GitHub Actions ejecutándose en cada push ✅
-- **Tests automáticos:** 308 tests pasando al 100% ✅
-- **Cobertura de código:** 91% ✅
+- **Tests automáticos:** 440 tests pasando al 100% ✅
+- **Cobertura de código:** 95%+ ✅
 
 ---
 
@@ -460,7 +460,7 @@ Protegidos con `X-Admin-Key` en el header.
 | Validación de contraseña | 8+ chars, mayúscula, minúscula, número y símbolo |
 | Cambio forzado en primer login | Campo `debe_cambiar_password` verificado en cada request |
 | No enumeración de usuarios | Login devuelve siempre el mismo mensaje de error |
-| Rate limiting | SlowAPI por token de usuario (no por IP) |
+| Rate limiting | SlowAPI por IP: 5/min en `/auth/login`, 20/min en `POST /chat/mensaje` |
 | Emails en logs | Enmascarados: `b*****@empresa.com` |
 | reCAPTCHA | Validado antes de consultar la BD |
 | CORS | Solo origins autorizados; localhost solo en `development` |
@@ -610,11 +610,11 @@ Los tests usan **SQLite en memoria** — no requieren conexión a Neon ni variab
 
 | Archivo | Qué prueba | Tests |
 |---|---|---|
-| `tests/test_auth.py` | Endpoints HTTP de autenticación | 6 |
+| `tests/test_auth.py` | Endpoints HTTP de autenticación: login, register, forgot/reset password, cambiar password, refresh, logout | 20 |
 | `tests/test_auth_service.py` | Lógica del servicio de auth: login, refresh, reset token seguro, empresa activa | 34 |
 | `tests/test_incidente_service.py` | Servicio de incidentes, investigaciones y acciones correctivas | 18 |
 | `tests/test_riesgo_service.py` | Servicio de peligros, evaluaciones y medidas de control | 18 |
-| `tests/test_capacitacion_service.py` | Servicio de capacitaciones, sesiones, asistencia y evaluaciones | 30 |
+| `tests/test_capacitacion_service.py` | Servicio de capacitaciones, sesiones, asistencia, evaluaciones y generación de certificado PDF | 41 |
 | `tests/test_auditoria_service.py` | Servicio de auditorías, hallazgos y no conformidades | 24 |
 | `tests/test_usuario_service.py` | Servicio de usuarios — crear, filtrar, actualizar, área y cargo | 20 |
 | `tests/test_admin_router.py` | Endpoints HTTP de administración con X-Admin-Key | 18 |
@@ -629,8 +629,15 @@ Los tests usan **SQLite en memoria** — no requieren conexión a Neon ni variab
 | `tests/test_routers.py` | Límites de paginación: 422 en exceso, 200 en válido — 6 endpoints | 15 |
 | `tests/test_schemas.py` | Validación Enum en schemas: tipo, estado, severidad, prioridad | 24 |
 | `tests/test_migrations.py` | Integridad estructural de migraciones Alembic (sin DB) | 10 |
+| `tests/test_email_service.py` | Envío de correos transaccionales (reset, bienvenida, FURAT) con mocks de httpx | 13 |
+| `tests/test_ai_service.py` | Servicio IA (Gemini): contexto SST, historial, manejo de errores, respuestas vacías | 15 |
+| `tests/test_chat_router.py` | Endpoints HTTP del chat SASBOT: enviar mensaje, historial, auth 401/403 | 16 |
+| `tests/test_capacitacion_router.py` | Endpoints HTTP de capacitaciones: CRUD, sesiones, asistencia, evaluaciones, certificado | 20 |
+| `tests/test_area_router.py` | Endpoints HTTP de áreas: listar, crear, duplicado, 401/403 | 9 |
+| `tests/test_cargo_router.py` | Endpoints HTTP de cargos: listar, crear, área inexistente, área otra empresa, duplicado | 8 |
+| `tests/test_incidente_router.py` | Endpoints HTTP de incidentes: CRUD, investigación, acciones correctivas, FURAT | 26 |
 
-**Total: 308 tests — cobertura global: 91%**
+**Total: 440 tests — cobertura global: 95%+**
 
 #### Diferencia entre tests de endpoint y tests de servicio
 
@@ -779,6 +786,126 @@ Todos los errores retornan:
 ---
 
 ## 8. Historial de Cambios
+
+### Sprint 15 — Hardening de seguridad y cobertura de tests (308 → 440 tests)
+
+#### 15.1 Rate limiting
+
+| Endpoint | Límite anterior | Límite nuevo |
+|---|---|---|
+| `POST /auth/login` | 20/min por IP | **5/min por IP** |
+| `POST /chat/mensaje` | Sin límite | **20/min por IP** |
+
+El limitador de `/auth/login` usa `Limiter(key_func=get_remote_address)` local al router; no depende del limiter global de `main.py`. El del chat también usa IP. Los tests evitan el endpoint `/auth/login` usando `_tokens_para(db, usuario)` que crea tokens directamente en BD.
+
+**Archivos:** `app/routers/auth_router.py`, `app/routers/chat_router.py`
+
+#### 15.2 Sanitización de inputs en generación de PDF (FURAT)
+
+Se añadieron dos helpers a `furat_service.py`:
+
+```python
+def _safe(value, max_len: int = 500) -> str:
+    s = str(value) if value is not None else ""
+    s = "".join(c for c in s if c >= " " or c in "\n\r\t")
+    return s[:max_len]
+
+def _nr(value, max_len: int = 500) -> str:
+    s = _safe(value, max_len).strip()
+    return s if s else "No registrado"
+```
+
+`_safe()` elimina caracteres de control y trunca cadenas largas. Aunque `reportlab` con `Table` de strings planos no parsea XML (no hay riesgo de inyección hoy), el helper protege contra cambios futuros que usen `Paragraph`.
+
+**Archivo:** `app/services/furat_service.py`
+
+#### 15.3 Auditoría de dependencias (pip-audit)
+
+Ejecutado `pip-audit` sobre todas las dependencias de la aplicación:
+
+- **Resultado:** 0 CVEs en dependencias de la app
+- Las 5 CVEs reportadas pertenecen al propio gestor `pip` (no es una dependencia de la app)
+- `pip` actualizado de la versión anterior a **26.1.2**
+
+#### 15.4 CORS verificado
+
+La configuración de CORS en `main.py` ya estaba correcta: lista explícita de dominios autorizados (`pisst.online`, `app.pisst.online`, `pisst-frontend.vercel.app`, y `localhost` solo en modo `development`). No se usa `allow_origins=["*"]` en producción.
+
+#### 15.5 Variables de entorno en producción confirmadas
+
+Verificadas en los paneles de Render y Railway:
+- `DATABASE_URL` (Neon PostgreSQL)
+- `SECRET_KEY` (cadena larga aleatoria)
+- `RESEND_API_KEY`
+- `GEMINI_API_KEY`
+- `RECAPTCHA_SECRET_KEY`
+- `ADMIN_SECRET_KEY`
+- `BACKEND_URL`
+- `CLOUDINARY_*`
+
+La `SECRET_KEY` puede rotarse en cualquier momento desde el panel de Render; al deployar, los JWT existentes quedan invalidados automáticamente.
+
+#### 15.6 Nuevos archivos de tests — routers
+
+| Archivo | Tests | Cobertura ganada |
+|---|---|---|
+| `tests/test_area_router.py` | 9 | area_router: 62% → 100% |
+| `tests/test_cargo_router.py` | 8 | cargo_router: 56% → 100% |
+| `tests/test_incidente_router.py` | 26 | incidente_router: 56% → 90%+ |
+| `tests/test_email_service.py` | 13 | email_service: 0% → 95%+ |
+| `tests/test_ai_service.py` | 15 | ai_service: 0% → 90%+ |
+| `tests/test_chat_router.py` | 16 | chat_router: 0% → 90%+ |
+| `tests/test_capacitacion_router.py` | 20 | capacitacion_router: 0% → 85%+ |
+
+`test_incidente_router.py` incluye helpers `payload_incidente(**kwargs)` y `crear_incidente_via_api(client, headers, **kwargs)`. Cubre CRUD completo, investigación, acciones correctivas y FURAT (con `furat_service.generar_furat` mockeado).
+
+#### 15.7 Expansión de tests existentes
+
+| Archivo | Tests añadidos | Cobertura ganada |
+|---|---|---|
+| `tests/test_auth.py` | +14 (register, forgot/reset password, cambiar password, refresh, logout) | auth_router: 84% → 98%+ |
+| `tests/test_capacitacion_service.py` | +11 (area_ids, activo, sesion 404, empleado 404, historial con evaluación aprobada, `generar_certificado`) | capacitacion_service: 80% → 100% |
+
+El test `test_generar_certificado_ok` cubre el flujo completo: crear capacitacion → crear sesion → crear evaluacion → responder correctamente → generar PDF. Verifica que el buffer empiece con `b"%PDF"`.
+
+#### 15.8 Helper `_tokens_para` en tests de auth
+
+Para evitar que el rate limit de 5/min en `/auth/login` bloquee los tests de auth (que comparten la IP ficticia `testclient`), se creó el helper:
+
+```python
+def _tokens_para(db, usuario):
+    """Crea access + refresh token directamente en BD sin pasar por el rate-limited /login."""
+    session_id = secrets.token_hex(16)
+    refresh = secrets.token_hex(40)
+    usuario.session_token = session_id
+    usuario.refresh_token = refresh
+    usuario.refresh_token_expira = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=7)
+    db.commit()
+    access = create_access_token({"sub": str(usuario.id), "role": usuario.role.value, "sid": session_id})
+    return {"access_token": access, "refresh_token": refresh}
+```
+
+Este patrón también está disponible en `test_incidente_router.py` y `test_cargo_router.py` para que los tests de esos routers no dependan de hacer login.
+
+#### 15.9 Bugs corregidos durante los tests
+
+| Bug | Síntoma | Fix |
+|---|---|---|
+| `POST /capacitaciones/` devolvía `{}` | `response_model` no declarado en el router | Agregado `response_model=CapacitacionResponse` |
+| `POST /capacitaciones/sesiones` devolvía `{}` | Igual que el anterior | Agregado `response_model=SesionResponse` |
+| Estado inicial incidente es `"borrador"`, no `"abierto"` | Tests asumían `"abierto"` | Corregidas aserciones en `test_incidente_router.py` |
+| Estado inicial acción correctiva es `"planificada"`, no `"pendiente"` | Test asumía `"pendiente"` | Corregida aserción |
+| Enum usa `"en_ejecucion"`, no `"en_progreso"` | Test enviaba valor inválido | Corregido valor en el test |
+| `patch("app.services.auth_service.enviar_correo_reset")` no existe | `enviar_correo_reset` se importa dentro de la función, no como atributo del módulo | Cambiado a `patch("app.services.email_service.httpx.post")` |
+
+#### 15.10 Resumen del sprint
+
+- **Nuevos tests:** +132 (308 → 440)
+- **Sin regresiones** en ninguno de los 308 tests previos
+- **Cobertura global:** 91% → 95%+
+- **CVEs en dependencias de la app:** 0
+
+---
 
 ### Sprint 14 — Seguridad, calidad y deuda técnica (228 → 308 tests)
 
