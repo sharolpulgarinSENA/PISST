@@ -14,11 +14,17 @@ from app.models.empresa import Empresa
 from app.services.incidente_service import get_incidente_by_id
 
 
-def _nr(value) -> str:
-    """Retorna el valor como string, o 'No registrado' si es None/vacío."""
-    if value is None or str(value).strip() == "":
-        return "No registrado"
-    return str(value).strip()
+def _safe(value, max_len: int = 500) -> str:
+    """Elimina caracteres de control y trunca cadenas largas para evitar problemas en el PDF."""
+    s = str(value) if value is not None else ""
+    s = "".join(c for c in s if c >= " " or c in "\n\r\t")
+    return s[:max_len]
+
+
+def _nr(value, max_len: int = 500) -> str:
+    """Retorna el valor como string sanitizado, o 'No registrado' si es None/vacío."""
+    s = _safe(value, max_len).strip()
+    return s if s else "No registrado"
 
 
 def _obtener_datos_furat(db: Session, incidente_id: UUID, empresa_id: UUID) -> dict:

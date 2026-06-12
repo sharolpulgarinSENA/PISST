@@ -91,7 +91,7 @@ class ApiKeyResponse(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit("20/minute")
+@limiter.limit("5/minute")
 async def login(request: Request, datos: LoginRequest, db: Session = Depends(get_db)):
     return await auth_service.login(
         datos.email, datos.password, datos.recaptcha_token, db
