@@ -82,6 +82,7 @@ class IncidenteResponse(BaseModel):
     testigos: list[TestigoResponse]
     creado_por_nombre: Optional[str] = None
     creado_por_rol: Optional[str] = None
+    creado_por_id: Optional[UUID] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -91,6 +92,7 @@ class IncidenteResponse(BaseModel):
         if incidente.reportado_por:
             obj.creado_por_nombre = incidente.reportado_por.nombre
             obj.creado_por_rol = incidente.reportado_por.role.value
+            obj.creado_por_id = incidente.reportado_por.id
         return obj
 
 

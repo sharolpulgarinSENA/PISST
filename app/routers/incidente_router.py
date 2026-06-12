@@ -56,17 +56,24 @@ def crear_incidente(
     incidente = incidente_service.create_incidente(
         db, datos, current_user.empresa_id, current_user.id
     )
+    _rol = current_user.role.value
+    if _rol == "gerencia":
+        rol_texto = "Gerencia"
+    elif _rol == "sst":
+        rol_texto = "SST"
+    else:
+        rol_texto = "un empleado"
     notificacion_service.crear_notificacion(
         db,
         empresa_id=current_user.empresa_id,
         tipo="reporte_nuevo",
-        titulo="Nuevo reporte de empleado",
-        descripcion=f"{current_user.nombre} reportó un incidente",
+        titulo=f"Nuevo reporte de {rol_texto}",
+        descripcion=f"{current_user.nombre} ({rol_texto}) reportó un nuevo incidente",
         modulo="reportes",
         url_destino=f"/incidentes?reporte={incidente.id}",
     )
     db.commit()
-    return incidente
+    return IncidenteResponse.from_orm_with_creator(incidente)
 
 
 @router.get("/{incidente_id}", response_model=IncidenteResponse)
