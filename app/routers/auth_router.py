@@ -1,4 +1,5 @@
 # app/routers/auth_router.py
+import os
 from typing import Optional
 from uuid import UUID
 
@@ -21,6 +22,10 @@ _bearer = HTTPBearer()
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 limiter = Limiter(key_func=get_remote_address)
+
+_LOGIN_RATE_LIMIT = (
+    "5/minute" if os.getenv("ENVIRONMENT") == "production" else "1000/minute"
+)
 
 
 # ── Schemas ──────────────────────────────────────────────────────
@@ -91,7 +96,7 @@ class ApiKeyResponse(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit("5/minute")
+@limiter.limit(_LOGIN_RATE_LIMIT)
 async def login(request: Request, datos: LoginRequest, db: Session = Depends(get_db)):
     return await auth_service.login(
         datos.email, datos.password, datos.recaptcha_token, db
