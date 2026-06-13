@@ -1,5 +1,4 @@
 # app/routers/chat_router.py
-import os
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
@@ -35,10 +34,6 @@ router = APIRouter(prefix="/chat", tags=["SASBOT - Chat IA"])
 
 limiter = Limiter(key_func=get_remote_address)
 
-_CHAT_RATE_LIMIT = (
-    "20/minute" if os.getenv("ENVIRONMENT") == "production" else "1000/minute"
-)
-
 
 # ── Schemas ───────────────────────────────────────────────────────
 
@@ -59,7 +54,7 @@ class ReporteRapidoRequest(BaseModel):
 
 
 @router.post("/mensaje")
-@limiter.limit(_CHAT_RATE_LIMIT)
+@limiter.limit("20/minute")
 def enviar_mensaje(
     request: Request,
     datos: MensajeRequest,
