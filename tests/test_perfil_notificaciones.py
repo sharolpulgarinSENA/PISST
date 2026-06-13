@@ -1,7 +1,9 @@
 # tests/test_perfil_notificaciones.py
+import secrets
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-from app.core.security import get_password_hash
+from app.core.security import create_access_token, get_password_hash
 from app.models.notificacion import Notificacion
 from app.models.user import RoleEnum, User
 
@@ -25,13 +27,21 @@ def _crear_empleado(db, empresa):
     return user
 
 
-def _token(client, email, password="password123"):
-    with patch("app.services.auth_service.validar_recaptcha", return_value=True):
-        resp = client.post(
-            "/auth/login",
-            json={"email": email, "password": password, "recaptcha_token": "test"},
-        )
-    return resp.json()["access_token"]
+def _tokens_para(db, usuario):
+    import os
+
+    os.environ.setdefault("SECRET_KEY", "test-secret-key-para-tests-unitarios")
+    session_id = secrets.token_hex(16)
+    refresh = secrets.token_hex(40)
+    usuario.session_token = session_id
+    usuario.refresh_token = refresh
+    usuario.refresh_token_expira = datetime.now(timezone.utc).replace(
+        tzinfo=None
+    ) + timedelta(days=7)
+    db.commit()
+    return create_access_token(
+        {"sub": str(usuario.id), "role": usuario.role.value, "sid": session_id}
+    )
 
 
 def _headers(token):
@@ -41,8 +51,8 @@ def _headers(token):
 # ── PATCH /usuarios/me ────────────────────────────────────────────
 
 
-def test_actualizar_perfil_nombre(client, usuario_sst):
-    token = _token(client, usuario_sst.email)
+def test_actualizar_perfil_nombre(client, db, usuario_sst):
+    token = _tokens_para(db, usuario_sst)
     resp = client.patch(
         "/usuarios/me",
         json={"nombre": "Nuevo Nombre SST"},
@@ -52,8 +62,8 @@ def test_actualizar_perfil_nombre(client, usuario_sst):
     assert resp.json()["nombre"] == "Nuevo Nombre SST"
 
 
-def test_actualizar_perfil_telefono(client, usuario_sst):
-    token = _token(client, usuario_sst.email)
+def test_actualizar_perfil_telefono(client, db, usuario_sst):
+    token = _tokens_para(db, usuario_sst)
     resp = client.patch(
         "/usuarios/me",
         json={"telefono": "+57 310 000 0000"},
@@ -71,8 +81,8 @@ def test_actualizar_perfil_sin_token(client):
 # ── PUT /usuarios/me/foto ─────────────────────────────────────────
 
 
-def test_subir_foto_exitoso(client, usuario_sst):
-    token = _token(client, usuario_sst.email)
+def test_subir_foto_exitoso(client, db, usuario_sst):
+    token = _tokens_para(db, usuario_sst)
     with patch(
         "app.routers.usuario_router.subir_foto_perfil",
         return_value="https://res.cloudinary.com/fake/foto.webp",
@@ -87,8 +97,8 @@ def test_subir_foto_exitoso(client, usuario_sst):
     assert resp.json()["foto_url"].startswith("https://")
 
 
-def test_subir_foto_tipo_invalido(client, usuario_sst):
-    token = _token(client, usuario_sst.email)
+def test_subir_foto_tipo_invalido(client, db, usuario_sst):
+    token = _tokens_para(db, usuario_sst)
     resp = client.put(
         "/usuarios/me/foto",
         files={"foto": ("doc.pdf", b"fake-pdf", "application/pdf")},
@@ -108,8 +118,8 @@ def test_subir_foto_sin_token(client):
 # ── GET /usuarios/me/actividad ────────────────────────────────────
 
 
-def test_actividad_retorna_estructura(client, usuario_sst):
-    token = _token(client, usuario_sst.email)
+def test_actividad_retorna_estructura(client, db, usuario_sst):
+    token = _tokens_para(db, usuario_sst)
     resp = client.get("/usuarios/me/actividad", headers=_headers(token))
     assert resp.status_code == 200
     data = resp.json()
@@ -139,7 +149,7 @@ def test_feed_retorna_estructura(client, db, empresa, usuario_sst):
     db.add(notif)
     db.commit()
 
-    token = _token(client, usuario_sst.email)
+    token = _tokens_para(db, usuario_sst)
     resp = client.get("/notificaciones/feed", headers=_headers(token))
     assert resp.status_code == 200
     data = resp.json()
@@ -152,8 +162,8 @@ def test_feed_retorna_estructura(client, db, empresa, usuario_sst):
     assert "leido" in evento
 
 
-def test_feed_paginacion(client, usuario_sst):
-    token = _token(client, usuario_sst.email)
+def test_feed_paginacion(client, db, usuario_sst):
+    token = _tokens_para(db, usuario_sst)
     resp = client.get("/notificaciones/feed?limit=5&offset=0", headers=_headers(token))
     assert resp.status_code == 200
     assert len(resp.json()["eventos"]) <= 5
@@ -181,16 +191,16 @@ def test_marcar_leido(client, db, empresa, usuario_sst):
     db.commit()
     db.refresh(notif)
 
-    token = _token(client, usuario_sst.email)
+    token = _tokens_para(db, usuario_sst)
     resp = client.patch(f"/notificaciones/{notif.id}/leido", headers=_headers(token))
     assert resp.status_code == 200
     assert resp.json()["leido"] is True
 
 
-def test_marcar_leido_inexistente(client, usuario_sst):
+def test_marcar_leido_inexistente(client, db, usuario_sst):
     import uuid
 
-    token = _token(client, usuario_sst.email)
+    token = _tokens_para(db, usuario_sst)
     resp = client.patch(
         f"/notificaciones/{uuid.uuid4()}/leido", headers=_headers(token)
     )
@@ -215,7 +225,7 @@ def test_leer_todas(client, db, empresa, usuario_sst):
         )
     db.commit()
 
-    token = _token(client, usuario_sst.email)
+    token = _tokens_para(db, usuario_sst)
     resp = client.patch("/notificaciones/leer-todas", headers=_headers(token))
     assert resp.status_code == 200
     assert "actualizadas" in resp.json()
