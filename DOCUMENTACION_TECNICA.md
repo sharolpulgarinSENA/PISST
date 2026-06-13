@@ -1,6 +1,6 @@
 # Documentación Técnica — PISST
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
-**Versión:** 2.0 | **Fecha:** 2026-06-11 | **Estado:** Producción
+**Versión:** 2.1 | **Fecha:** 2026-06-13 | **Estado:** Producción
 
 ---
 
@@ -786,6 +786,120 @@ Todos los errores retornan:
 ---
 
 ## 8. Historial de Cambios
+
+### Sprint 16 — Notificaciones reales, historial de capacitaciones y hardening de rate limiting
+
+#### 16.1 Notificación `reporte_nuevo` con rol real del creador
+
+Antes, el título de la notificación siempre decía "Nuevo reporte de empleado" independientemente de quién creara el incidente. Ahora se usa el rol real del usuario autenticado.
+
+```python
+_rol = current_user.role.value
+if _rol == "gerencia":
+    rol_texto = "Gerencia"
+elif _rol == "sst":
+    rol_texto = "SST"
+else:
+    rol_texto = "un empleado"
+
+notificacion_service.crear_notificacion(
+    db,
+    empresa_id=current_user.empresa_id,
+    tipo="reporte_nuevo",
+    titulo=f"Nuevo reporte de {rol_texto}",
+    descripcion=f"{current_user.nombre} ({rol_texto}) reportó un nuevo incidente",
+    ...
+)
+```
+
+**Archivo:** `app/routers/incidente_router.py`
+
+#### 16.2 Campo `creado_por_id` en `IncidenteResponse`
+
+Se añadió `creado_por_id: Optional[UUID]` al schema de respuesta de incidentes para que el frontend pueda identificar si el incidente fue creado por el usuario actual y mostrar/ocultar acciones según corresponda.
+
+```python
+class IncidenteResponse(BaseModel):
+    creado_por_nombre: Optional[str] = None
+    creado_por_rol: Optional[str] = None
+    creado_por_id: Optional[UUID] = None   # ← nuevo
+
+    @classmethod
+    def from_orm_with_creator(cls, incidente) -> "IncidenteResponse":
+        obj = cls.model_validate(incidente)
+        if incidente.reportado_por:
+            obj.creado_por_nombre = incidente.reportado_por.nombre
+            obj.creado_por_rol   = incidente.reportado_por.role.value
+            obj.creado_por_id    = incidente.reportado_por.id
+        return obj
+```
+
+**Archivo:** `app/schemas/incidente.py`
+
+#### 16.3 Campo `sesion_estado` en historial de capacitaciones
+
+El endpoint `GET /capacitaciones/historial` ahora incluye `sesion_estado` en cada entrada del historial, permitiendo al frontend distinguir sesiones completadas, pendientes o canceladas.
+
+```python
+historial.append({
+    "capacitacion_nombre": capacitacion.titulo,
+    "fecha_sesion":        sesion.fecha,
+    "sesion_estado":       sesion.estado if sesion.estado else None,   # ← nuevo
+    "evaluacion_id":       str(evaluacion.id) if evaluacion else None,
+    "evaluacion":          evaluacion_data,
+    "resultado":           resultado_data,
+})
+```
+
+**Archivo:** `app/services/capacitacion_service.py`
+
+#### 16.4 Hardening de rate limiting — eliminación del bypass por entorno
+
+Se detectó que la implementación previa desactivaba el rate limiting cuando `ENVIRONMENT != "production"`. Dado que Render tiene configurado `ENVIRONMENT=development`, el endpoint `/auth/login` en producción tenía efectivamente **1 000 peticiones/min**, anulando la protección contra fuerza bruta.
+
+**Solución aplicada:**
+
+1. **Límites siempre hardcoded** — se eliminó la variable de entorno `_LOGIN_RATE_LIMIT` y `_CHAT_RATE_LIMIT`:
+
+   ```python
+   # auth_router.py
+   @limiter.limit("5/minute")   # siempre, en todos los entornos
+
+   # chat_router.py
+   @limiter.limit("20/minute")  # siempre, en todos los entornos
+   ```
+
+2. **Fixture `autouse=True` en tests** — en lugar de desactivar el límite, se resetea el storage en memoria de SlowAPI antes de cada test:
+
+   ```python
+   # tests/conftest.py
+   @pytest.fixture(autouse=True)
+   def resetear_rate_limiter():
+       from app.routers.auth_router import limiter as auth_limiter
+       from app.routers.chat_router import limiter as chat_limiter
+       for lim in (auth_limiter, chat_limiter):
+           try:
+               lim._storage.reset()
+           except Exception:
+               pass
+       yield
+   ```
+
+   SlowAPI usa un singleton en memoria compartido entre todos los tests de una sesión. Sin el reset, los tests que usaban `/auth/login` agotaban el cupo de 5/min antes de que llegara el turno de `test_perfil_notificaciones.py`, causando fallos en CI (HTTP 429).
+
+3. **Helper `_tokens_para` en `test_perfil_notificaciones.py`** — los tests de perfil y notificaciones ya no llaman a `/auth/login`; crean los tokens directamente en BD, evitando el rate limit por diseño.
+
+**Archivos:** `app/routers/auth_router.py`, `app/routers/chat_router.py`, `tests/conftest.py`, `tests/test_perfil_notificaciones.py`
+
+#### 16.5 Resumen del sprint
+
+- **Tests:** 440 (sin regresiones)
+- **Seguridad:** rate limiting activo en todos los entornos, incluyendo producción
+- **API:** `IncidenteResponse` ahora expone `creado_por_id`
+- **Notificaciones:** título refleja el rol real del creador del incidente
+- **Historial capacitaciones:** incluye `sesion_estado`
+
+---
 
 ### Sprint 15 — Hardening de seguridad y cobertura de tests (308 → 440 tests)
 
