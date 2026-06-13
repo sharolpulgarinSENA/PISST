@@ -36,6 +36,24 @@ def setup_db():
     Base.metadata.drop_all(bind=engine)
 
 
+@pytest.fixture(autouse=True)
+def resetear_rate_limiter():
+    """Limpia el storage en memoria del rate limiter antes de cada test.
+
+    Sin esto, el limiter comparte estado entre tests y los que corren
+    tarde en la sesión reciben 429 aunque sean independientes.
+    """
+    from app.routers.auth_router import limiter as auth_limiter
+    from app.routers.chat_router import limiter as chat_limiter
+
+    for lim in (auth_limiter, chat_limiter):
+        try:
+            lim._storage.reset()
+        except Exception:
+            pass
+    yield
+
+
 @pytest.fixture
 def db():
     db = TestingSessionLocal()
