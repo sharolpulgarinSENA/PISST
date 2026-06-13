@@ -327,6 +327,7 @@ def get_historial_empleado(db: Session, empleado_id: UUID, empresa_id: UUID):
             {
                 "capacitacion_nombre": capacitacion.titulo,
                 "fecha_sesion": sesion.fecha,
+                "sesion_estado": sesion.estado if sesion.estado else None,
                 "evaluacion_id": str(evaluacion.id) if evaluacion else None,
                 "evaluacion": evaluacion_data,
                 "resultado": resultado_data,
