@@ -104,6 +104,7 @@ def cambiar_estado(
     incidente = incidente_service.update_estado_incidente(
         db, incidente_id, current_user.empresa_id, datos.estado
     )
+    # Notificación empresa (SST / Gerencia)
     notificacion_service.crear_notificacion(
         db,
         empresa_id=current_user.empresa_id,
@@ -113,6 +114,19 @@ def cambiar_estado(
         modulo="reportes",
         url_destino=f"/incidentes?reporte={incidente_id}",
     )
+    # Notificación personal al empleado que creó el reporte
+    creador = incidente.reportado_por
+    if creador and creador.role.value == "empleado":
+        notificacion_service.crear_notificacion(
+            db,
+            empresa_id=current_user.empresa_id,
+            tipo="reporte_estado_cambio",
+            titulo="Tu reporte cambió de estado",
+            descripcion=f"Tu incidente reportado cambió a estado: {datos.estado}",
+            modulo="reportes",
+            url_destino="/empleado/reporte",
+            usuario_id=creador.id,
+        )
     db.commit()
     return incidente
 

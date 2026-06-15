@@ -2,6 +2,7 @@
 from uuid import UUID
 
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.capacitacion import (
@@ -11,6 +12,7 @@ from app.models.capacitacion import (
     Pregunta,
     RespuestaEmpleado,
     SesionCapacitacion,
+    capacitacion_areas,
 )
 from app.models.user import User
 from app.schemas.capacitacion import (
@@ -270,69 +272,103 @@ def get_historial_empleado(db: Session, empleado_id: UUID, empresa_id: UUID):
     if not empleado:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
-    asistencias = (
-        db.query(Asistencia)
-        .filter(Asistencia.empleado_id == empleado_id)
-        .order_by(Asistencia.fecha_registro.desc())
+    if not empleado.area_id:
+        return []
+
+    # Todas las capacitaciones del área del empleado, en esta empresa
+    cap_ids_en_area = select(capacitacion_areas.c.capacitacion_id).where(
+        capacitacion_areas.c.area_id == empleado.area_id
+    )
+    capacitaciones = (
+        db.query(Capacitacion)
+        .filter(
+            Capacitacion.empresa_id == empresa_id,
+            Capacitacion.id.in_(cap_ids_en_area),
+        )
+        .order_by(Capacitacion.fecha_creacion.desc())
         .all()
     )
 
     historial = []
-    for asistencia in asistencias:
-        sesion = asistencia.sesion
-        capacitacion = sesion.capacitacion
-        evaluacion = sesion.evaluaciones[0] if sesion.evaluaciones else None
 
-        evaluacion_data = None
-        resultado_data = None
+    for cap in capacitaciones:
+        if not cap.sesiones:
+            historial.append(
+                {
+                    "capacitacion_id": str(cap.id),
+                    "capacitacion_nombre": cap.titulo,
+                    "capacitacion_activo": cap.activo,
+                    "fecha_sesion": None,
+                    "sesion_estado": None,
+                    "evaluacion_id": None,
+                    "evaluacion": None,
+                    "resultado": None,
+                }
+            )
+            continue
 
-        if evaluacion:
-            evaluacion_data = {
-                "id": str(evaluacion.id),
-                "titulo": evaluacion.titulo,
-                "puntaje_minimo": evaluacion.puntaje_minimo,
-                "preguntas": [
-                    {
-                        "id": str(p.id),
-                        "texto": p.texto,
-                        "opciones": [
-                            {"clave": "a", "texto": p.opcion_a},
-                            {"clave": "b", "texto": p.opcion_b},
-                            {"clave": "c", "texto": p.opcion_c},
-                            {"clave": "d", "texto": p.opcion_d},
-                        ],
-                    }
-                    for p in evaluacion.preguntas
-                ],
-            }
-
-            respuestas = (
-                db.query(RespuestaEmpleado)
-                .filter(
-                    RespuestaEmpleado.evaluacion_id == evaluacion.id,
-                    RespuestaEmpleado.empleado_id == empleado_id,
-                )
-                .all()
+        for sesion in cap.sesiones:
+            # Asistencia de este empleado en esta sesión (puede ser None)
+            asistencia = next(
+                (a for a in sesion.asistencias if a.empleado_id == empleado_id),
+                None,
             )
 
-            if respuestas:
-                resultado_data = {
-                    "puntaje_final": respuestas[0].puntaje_final,
-                    "aprobado": respuestas[0].aprobado,
-                    "total_preguntas": len(respuestas),
-                    "respuestas_correctas": sum(1 for r in respuestas if r.es_correcta),
+            evaluacion = sesion.evaluaciones[0] if sesion.evaluaciones else None
+            evaluacion_data = None
+            resultado_data = None
+
+            if evaluacion:
+                evaluacion_data = {
+                    "id": str(evaluacion.id),
+                    "titulo": evaluacion.titulo,
+                    "puntaje_minimo": evaluacion.puntaje_minimo,
+                    "preguntas": [
+                        {
+                            "id": str(p.id),
+                            "texto": p.texto,
+                            "opciones": [
+                                {"clave": "a", "texto": p.opcion_a},
+                                {"clave": "b", "texto": p.opcion_b},
+                                {"clave": "c", "texto": p.opcion_c},
+                                {"clave": "d", "texto": p.opcion_d},
+                            ],
+                        }
+                        for p in evaluacion.preguntas
+                    ],
                 }
 
-        historial.append(
-            {
-                "capacitacion_nombre": capacitacion.titulo,
-                "fecha_sesion": sesion.fecha,
-                "sesion_estado": sesion.estado if sesion.estado else None,
-                "evaluacion_id": str(evaluacion.id) if evaluacion else None,
-                "evaluacion": evaluacion_data,
-                "resultado": resultado_data,
-            }
-        )
+                if asistencia:
+                    respuestas = (
+                        db.query(RespuestaEmpleado)
+                        .filter(
+                            RespuestaEmpleado.evaluacion_id == evaluacion.id,
+                            RespuestaEmpleado.empleado_id == empleado_id,
+                        )
+                        .all()
+                    )
+                    if respuestas:
+                        resultado_data = {
+                            "puntaje_final": respuestas[0].puntaje_final,
+                            "aprobado": respuestas[0].aprobado,
+                            "total_preguntas": len(respuestas),
+                            "respuestas_correctas": sum(
+                                1 for r in respuestas if r.es_correcta
+                            ),
+                        }
+
+            historial.append(
+                {
+                    "capacitacion_id": str(cap.id),
+                    "capacitacion_nombre": cap.titulo,
+                    "capacitacion_activo": cap.activo,
+                    "fecha_sesion": sesion.fecha,
+                    "sesion_estado": sesion.estado if sesion.estado else None,
+                    "evaluacion_id": str(evaluacion.id) if evaluacion else None,
+                    "evaluacion": evaluacion_data,
+                    "resultado": resultado_data,
+                }
+            )
 
     return historial
 
