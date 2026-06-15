@@ -212,7 +212,7 @@ def registrar_asistencia(
         titulo="Te han asignado a una capacitación",
         descripcion="Fuiste registrado en una sesión de capacitación. Revisa tu historial.",
         modulo="capacitaciones",
-        url_destino="/capacitaciones/historial",
+        url_destino="/empleado/capacitaciones",
         usuario_id=datos.empleado_id,
     )
     db.commit()
