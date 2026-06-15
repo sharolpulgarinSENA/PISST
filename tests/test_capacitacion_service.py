@@ -286,7 +286,16 @@ def test_get_asistencia_by_sesion(db, empresa, usuario_sst):
 
 
 def test_get_historial_empleado(db, empresa, usuario_sst):
-    cap = make_capacitacion(db, empresa)
+    from app.models.area import Area
+
+    area = Area(nombre="Área historial test", empresa_id=empresa.id)
+    db.add(area)
+    db.commit()
+    db.refresh(area)
+    usuario_sst.area_id = area.id
+    db.commit()
+
+    cap = make_capacitacion(db, empresa, area_ids=[area.id])
     sesion = make_sesion(db, empresa, cap)
     capacitacion_service.registrar_asistencia(
         db,
@@ -475,7 +484,16 @@ def test_get_historial_empleado_inexistente(db, empresa):
 
 
 def test_get_historial_empleado_con_evaluacion_aprobada(db, empresa, usuario_sst):
-    cap = make_capacitacion(db, empresa)
+    from app.models.area import Area
+
+    area = Area(nombre="Área eval aprobada test", empresa_id=empresa.id)
+    db.add(area)
+    db.commit()
+    db.refresh(area)
+    usuario_sst.area_id = area.id
+    db.commit()
+
+    cap = make_capacitacion(db, empresa, area_ids=[area.id])
     sesion = make_sesion(db, empresa, cap)
     capacitacion_service.registrar_asistencia(
         db,
