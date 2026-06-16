@@ -1,11 +1,12 @@
 # app/routers/metricas_router.py
-from typing import Literal
+from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_role
+from app.core.utils import periodo_a_rango
 from app.models.user import User
 from app.services import metricas_service
 
@@ -22,10 +23,14 @@ def obtener_kpis(
 
 @router.get("/dashboard-gerencia")
 def dashboard_gerencia(
+    periodo: Optional[str] = Query(default=None, pattern="^(mes|trimestre|anio)$"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("sst", "gerencia")),
 ):
-    return metricas_service.get_dashboard_gerencia(db, current_user.empresa_id)
+    fecha_desde, fecha_hasta = periodo_a_rango(periodo)
+    return metricas_service.get_dashboard_gerencia(
+        db, current_user.empresa_id, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta
+    )
 
 
 @router.get("/alertas")
