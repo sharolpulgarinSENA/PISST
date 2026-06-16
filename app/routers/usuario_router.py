@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
+import filetype
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
@@ -86,6 +87,10 @@ async def actualizar_foto_perfil(
         raise HTTPException(
             status_code=413, detail="La imagen supera el límite de 2 MB"
         )
+
+    tipo_real = filetype.guess(contenido)
+    if not tipo_real or tipo_real.mime not in MIME_PERMITIDOS:
+        raise HTTPException(status_code=422, detail="Tipo de archivo no permitido.")
 
     try:
         url = subir_foto_perfil(contenido, str(current_user.id))

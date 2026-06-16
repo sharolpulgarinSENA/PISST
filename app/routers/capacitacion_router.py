@@ -79,6 +79,21 @@ def actualizar_capacitacion(
     )
 
 
+@router.delete("/{capacitacion_id}", status_code=204)
+def eliminar_capacitacion(
+    capacitacion_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst")),
+):
+    """
+    Elimina una capacitación creada por error.
+    No permitido si ya tiene asistencia registrada en alguna sesión.
+    """
+    capacitacion_service.delete_capacitacion(
+        db, capacitacion_id, current_user.empresa_id
+    )
+
+
 @router.get("/cobertura")
 def cobertura_capacitaciones(
     db: Session = Depends(get_db),
@@ -217,6 +232,25 @@ def registrar_asistencia(
     )
     db.commit()
     return asistencia
+
+
+@router.post(
+    "/sesiones/{sesion_id}/asistencia/yo",
+    response_model=AsistenciaResponse,
+    status_code=201,
+)
+def confirmar_mi_asistencia(
+    sesion_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    El empleado autenticado confirma su propia asistencia a una sesión
+    programada para el día de hoy.
+    """
+    return capacitacion_service.registrar_asistencia_propia(
+        db, sesion_id, current_user.id, current_user.empresa_id
+    )
 
 
 @router.get("/sesiones/{sesion_id}/asistencia", response_model=list[AsistenciaResponse])

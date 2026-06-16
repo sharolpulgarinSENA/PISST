@@ -13,6 +13,7 @@ from app.schemas.auditoria import (
     AuditoriaResponse,
     HallazgoCreate,
     HallazgoResponse,
+    HallazgoUpdate,
     NoConformidadCreate,
     NoConformidadResponse,
     NoConformidadUpdate,
@@ -137,6 +138,29 @@ def listar_hallazgos(
     return auditoria_service.get_hallazgos_by_auditoria(
         db, auditoria_id, current_user.empresa_id
     )
+
+
+@router.patch("/hallazgos/{hallazgo_id}", response_model=HallazgoResponse)
+def actualizar_hallazgo(
+    hallazgo_id: UUID,
+    datos: HallazgoUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst")),
+):
+    """Edita un hallazgo (ej. corregir clasificación o descripción)."""
+    return auditoria_service.update_hallazgo(
+        db, hallazgo_id, current_user.empresa_id, datos
+    )
+
+
+@router.delete("/hallazgos/{hallazgo_id}", status_code=204)
+def eliminar_hallazgo(
+    hallazgo_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("sst")),
+):
+    """Elimina un hallazgo. No permitido si tiene No Conformidades asociadas."""
+    auditoria_service.delete_hallazgo(db, hallazgo_id, current_user.empresa_id)
 
 
 # ── No Conformidades ──────────────────────────────────────────────

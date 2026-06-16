@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
+import filetype
 from fastapi import (
     APIRouter,
     Depends,
@@ -207,6 +208,10 @@ async def analizar_archivo(
         raise HTTPException(
             status_code=413, detail="El archivo supera el límite de 10 MB"
         )
+
+    tipo_real = filetype.guess(contenido)
+    if not tipo_real or tipo_real.mime not in MIME_PERMITIDOS:
+        raise HTTPException(status_code=422, detail="Tipo de archivo no permitido.")
 
     try:
         respuesta = analizar_archivo_sasbot(

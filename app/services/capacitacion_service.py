@@ -85,6 +85,34 @@ def update_capacitacion(db: Session, capacitacion_id: UUID, empresa_id: UUID, da
     return cap
 
 
+def delete_capacitacion(db: Session, capacitacion_id: UUID, empresa_id: UUID):
+    cap = (
+        db.query(Capacitacion)
+        .filter(
+            Capacitacion.id == capacitacion_id, Capacitacion.empresa_id == empresa_id
+        )
+        .first()
+    )
+    if not cap:
+        raise HTTPException(status_code=404, detail="Capacitación no encontrada")
+
+    tiene_asistencia = (
+        db.query(Asistencia)
+        .join(SesionCapacitacion, SesionCapacitacion.id == Asistencia.sesion_id)
+        .filter(SesionCapacitacion.capacitacion_id == capacitacion_id)
+        .first()
+        is not None
+    )
+    if tiene_asistencia:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar una capacitación con asistencia registrada. Suspéndela en su lugar.",
+        )
+
+    db.delete(cap)
+    db.commit()
+
+
 def toggle_capacitacion(
     db: Session, capacitacion_id: UUID, empresa_id: UUID, activo: bool
 ):
@@ -248,6 +276,58 @@ def registrar_asistencia(db: Session, datos: AsistenciaCreate, empresa_id: UUID)
     return asistencia
 
 
+def registrar_asistencia_propia(
+    db: Session, sesion_id: UUID, empleado_id: UUID, empresa_id: UUID
+):
+    from datetime import datetime, timezone
+
+    sesion = (
+        db.query(SesionCapacitacion)
+        .join(SesionCapacitacion.capacitacion)
+        .filter(
+            SesionCapacitacion.id == sesion_id,
+            Capacitacion.empresa_id == empresa_id,
+        )
+        .first()
+    )
+    if not sesion:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+
+    if sesion.estado != "programada":
+        raise HTTPException(
+            status_code=400,
+            detail="Solo puedes confirmar asistencia en sesiones programadas",
+        )
+
+    ahora = datetime.now(timezone.utc).replace(tzinfo=None)
+    if sesion.fecha.date() != ahora.date():
+        raise HTTPException(
+            status_code=400,
+            detail="Solo puedes confirmar asistencia el día de la sesión",
+        )
+
+    existe = (
+        db.query(Asistencia)
+        .filter(
+            Asistencia.sesion_id == sesion_id,
+            Asistencia.empleado_id == empleado_id,
+        )
+        .first()
+    )
+    if existe:
+        raise HTTPException(
+            status_code=400, detail="Ya tienes asistencia registrada en esta sesión"
+        )
+
+    asistencia = Asistencia(
+        sesion_id=sesion_id, empleado_id=empleado_id, estado="presente"
+    )
+    db.add(asistencia)
+    db.commit()
+    db.refresh(asistencia)
+    return asistencia
+
+
 def get_asistencia_by_sesion(db: Session, sesion_id: UUID, empresa_id: UUID):
     sesion = (
         db.query(SesionCapacitacion)
@@ -298,6 +378,7 @@ def get_historial_empleado(db: Session, empleado_id: UUID, empresa_id: UUID):
                     "capacitacion_id": str(cap.id),
                     "capacitacion_nombre": cap.titulo,
                     "capacitacion_activo": cap.activo,
+                    "sesion_id": None,
                     "fecha_sesion": None,
                     "sesion_estado": None,
                     "evaluacion_id": None,
@@ -362,6 +443,7 @@ def get_historial_empleado(db: Session, empleado_id: UUID, empresa_id: UUID):
                     "capacitacion_id": str(cap.id),
                     "capacitacion_nombre": cap.titulo,
                     "capacitacion_activo": cap.activo,
+                    "sesion_id": str(sesion.id),
                     "fecha_sesion": sesion.fecha,
                     "sesion_estado": sesion.estado if sesion.estado else None,
                     "evaluacion_id": str(evaluacion.id) if evaluacion else None,

@@ -1,5 +1,6 @@
 # app/services/metricas_service.py
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import func
@@ -77,7 +78,12 @@ def get_kpis(db: Session, empresa_id: UUID):
     }
 
 
-def get_dashboard_gerencia(db: Session, empresa_id: UUID):
+def get_dashboard_gerencia(
+    db: Session,
+    empresa_id: UUID,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+):
     kpis = get_kpis(db, empresa_id)
 
     incidentes_activos = (
@@ -89,49 +95,54 @@ def get_dashboard_gerencia(db: Session, empresa_id: UUID):
         .count()
     )
 
-    hace_un_mes = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30)
+    if fecha_desde and fecha_hasta:
+        desde_dt = datetime.combine(fecha_desde, datetime.min.time())
+        hasta_dt = datetime.combine(fecha_hasta, datetime.max.time())
+    else:
+        hasta_dt = datetime.now(timezone.utc).replace(tzinfo=None)
+        desde_dt = hasta_dt - timedelta(days=30)
+
     incidentes_ultimo_mes = (
         db.query(Incidente)
         .filter(
-            Incidente.empresa_id == empresa_id, Incidente.fecha_creacion >= hace_un_mes
-        )
-        .count()
-    )
-
-    total_capacitaciones = (
-        db.query(Capacitacion)
-        .filter(Capacitacion.empresa_id == empresa_id, Capacitacion.activo == True)
-        .count()
-    )
-
-    acciones_vencidas = (
-        db.query(AccionCorrectiva)
-        .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)
-        .filter(
             Incidente.empresa_id == empresa_id,
-            AccionCorrectiva.estado != EstadoAccionEnum.completada,
-            AccionCorrectiva.fecha_limite
-            < datetime.now(timezone.utc).replace(tzinfo=None),
+            Incidente.fecha_creacion >= desde_dt,
+            Incidente.fecha_creacion <= hasta_dt,
         )
         .count()
     )
 
-    total_acciones = (
-        db.query(AccionCorrectiva)
-        .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)
-        .filter(Incidente.empresa_id == empresa_id)
-        .count()
+    cap_query = db.query(Capacitacion).filter(
+        Capacitacion.empresa_id == empresa_id, Capacitacion.activo == True
     )
-
-    acciones_completadas = (
-        db.query(AccionCorrectiva)
-        .join(Incidente, AccionCorrectiva.incidente_id == Incidente.id)
-        .filter(
-            Incidente.empresa_id == empresa_id,
-            AccionCorrectiva.estado == EstadoAccionEnum.completada,
+    if fecha_desde and fecha_hasta:
+        cap_query = cap_query.filter(
+            Capacitacion.fecha_creacion >= desde_dt,
+            Capacitacion.fecha_creacion <= hasta_dt,
         )
-        .count()
+    total_capacitaciones = cap_query.count()
+
+    acciones_base = db.query(AccionCorrectiva).join(
+        Incidente, AccionCorrectiva.incidente_id == Incidente.id
     )
+    if fecha_desde and fecha_hasta:
+        acciones_base = acciones_base.filter(
+            AccionCorrectiva.fecha_creacion >= desde_dt,
+            AccionCorrectiva.fecha_creacion <= hasta_dt,
+        )
+
+    acciones_vencidas = acciones_base.filter(
+        Incidente.empresa_id == empresa_id,
+        AccionCorrectiva.estado != EstadoAccionEnum.completada,
+        AccionCorrectiva.fecha_limite < datetime.now(timezone.utc).replace(tzinfo=None),
+    ).count()
+
+    total_acciones = acciones_base.filter(Incidente.empresa_id == empresa_id).count()
+
+    acciones_completadas = acciones_base.filter(
+        Incidente.empresa_id == empresa_id,
+        AccionCorrectiva.estado == EstadoAccionEnum.completada,
+    ).count()
 
     cumplimiento = (
         round((acciones_completadas / total_acciones) * 100)

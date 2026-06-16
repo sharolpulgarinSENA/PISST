@@ -24,6 +24,7 @@ class AuditoriaResponse(BaseModel):
     empresa_id: UUID
     area_id: Optional[UUID]
     auditor_id: Optional[UUID]
+    nc_abiertas: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -40,6 +41,13 @@ class HallazgoCreate(BaseModel):
     recomendacion: Optional[str] = None
 
 
+class HallazgoUpdate(BaseModel):
+    descripcion: Optional[str] = None
+    clasificacion: Optional[str] = None
+    evidencia: Optional[str] = None
+    recomendacion: Optional[str] = None
+
+
 # ── No Conformidad ────────────────────────────────────────────────
 
 
@@ -52,6 +60,8 @@ class NoConformidadCreate(BaseModel):
 class NoConformidadUpdate(BaseModel):
     estado: Optional[str] = None
     evidencia_cierre: Optional[str] = None
+    descripcion: Optional[str] = None
+    fecha_limite: Optional[datetime] = None
 
 
 class NoConformidadResponse(BaseModel):
