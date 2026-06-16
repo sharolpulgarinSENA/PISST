@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.auditoria import (
@@ -15,6 +16,7 @@ from app.models.auditoria import (
 from app.schemas.auditoria import (
     AuditoriaCreate,
     HallazgoCreate,
+    HallazgoUpdate,
     NoConformidadCreate,
     NoConformidadUpdate,
 )
@@ -23,7 +25,7 @@ from app.schemas.auditoria import (
 
 
 def get_all_auditorias(db: Session, empresa_id: UUID, skip: int = 0, limit: int = 50):
-    return (
+    auditorias = (
         db.query(Auditoria)
         .filter(Auditoria.empresa_id == empresa_id)
         .order_by(Auditoria.fecha_programada.desc())
@@ -31,6 +33,20 @@ def get_all_auditorias(db: Session, empresa_id: UUID, skip: int = 0, limit: int 
         .limit(limit)
         .all()
     )
+
+    for auditoria in auditorias:
+        auditoria.nc_abiertas = (
+            db.query(func.count(NoConformidad.id))
+            .join(Hallazgo, Hallazgo.id == NoConformidad.hallazgo_id)
+            .filter(
+                Hallazgo.auditoria_id == auditoria.id,
+                NoConformidad.estado == EstadoNCEnum.abierta,
+            )
+            .scalar()
+            or 0
+        )
+
+    return auditorias
 
 
 def create_auditoria(db: Session, datos: AuditoriaCreate, empresa_id: UUID):
@@ -94,6 +110,47 @@ def create_hallazgo(
 def get_hallazgos_by_auditoria(db: Session, auditoria_id: UUID, empresa_id: UUID):
     get_auditoria_by_id(db, auditoria_id, empresa_id)
     return db.query(Hallazgo).filter(Hallazgo.auditoria_id == auditoria_id).all()
+
+
+def get_hallazgo_by_id(db: Session, hallazgo_id: UUID, empresa_id: UUID):
+    hallazgo = (
+        db.query(Hallazgo)
+        .join(Hallazgo.auditoria)
+        .filter(
+            Hallazgo.id == hallazgo_id,
+            Auditoria.empresa_id == empresa_id,
+        )
+        .first()
+    )
+    if not hallazgo:
+        raise HTTPException(status_code=404, detail="Hallazgo no encontrado")
+    return hallazgo
+
+
+def update_hallazgo(
+    db: Session, hallazgo_id: UUID, empresa_id: UUID, datos: HallazgoUpdate
+):
+    hallazgo = get_hallazgo_by_id(db, hallazgo_id, empresa_id)
+
+    for campo, valor in datos.model_dump(exclude_unset=True).items():
+        setattr(hallazgo, campo, valor)
+
+    db.commit()
+    db.refresh(hallazgo)
+    return hallazgo
+
+
+def delete_hallazgo(db: Session, hallazgo_id: UUID, empresa_id: UUID):
+    hallazgo = get_hallazgo_by_id(db, hallazgo_id, empresa_id)
+
+    if hallazgo.no_conformidades:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar un hallazgo con No Conformidades asociadas",
+        )
+
+    db.delete(hallazgo)
+    db.commit()
 
 
 def get_progreso_auditoria(db: Session, auditoria_id: UUID, empresa_id: UUID):

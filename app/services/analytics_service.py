@@ -109,14 +109,21 @@ def analizar_riesgos(
     empresa_id: UUID,
     limit: int = 1000,
     offset: int = 0,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
 ) -> dict:
+    base = [Peligro.empresa_id == empresa_id]
+    if fecha_desde:
+        base.append(
+            Peligro.fecha_creacion >= datetime.combine(fecha_desde, datetime.min.time())
+        )
+    if fecha_hasta:
+        base.append(
+            Peligro.fecha_creacion <= datetime.combine(fecha_hasta, datetime.max.time())
+        )
+
     # Total real — SQL COUNT
-    total = (
-        db.query(func.count(Peligro.id))
-        .filter(Peligro.empresa_id == empresa_id)
-        .scalar()
-        or 0
-    )
+    total = db.query(func.count(Peligro.id)).filter(*base).scalar() or 0
 
     if total == 0:
         return {
@@ -131,7 +138,7 @@ def analizar_riesgos(
     por_tipo = {
         r[0].value: r[1]
         for r in db.query(Peligro.tipo, func.count(Peligro.id))
-        .filter(Peligro.empresa_id == empresa_id)
+        .filter(*base)
         .group_by(Peligro.tipo)
         .all()
     }
@@ -140,7 +147,7 @@ def analizar_riesgos(
     peligros = (
         db.query(Peligro)
         .options(joinedload(Peligro.evaluaciones))
-        .filter(Peligro.empresa_id == empresa_id)
+        .filter(*base)
         .limit(limit)
         .offset(offset)
         .all()
@@ -313,26 +320,36 @@ def analizar_capacitaciones(
     }
 
 
-def calcular_cumplimiento(db: Session, empresa_id: UUID) -> dict:
+def calcular_cumplimiento(
+    db: Session,
+    empresa_id: UUID,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+) -> dict:
     """
     Score SG-SST (0–100) basado en 4 componentes con peso igual (25 c/u).
     100% SQL — no carga objetos en memoria.
     """
     scores: dict[str, float] = {}
 
-    # 1. Incidentes investigados (estado != borrador)
-    total_inc = (
-        db.query(func.count(Incidente.id))
-        .filter(Incidente.empresa_id == empresa_id)
-        .scalar()
-        or 0
+    desde_dt = (
+        datetime.combine(fecha_desde, datetime.min.time()) if fecha_desde else None
     )
+    hasta_dt = (
+        datetime.combine(fecha_hasta, datetime.max.time()) if fecha_hasta else None
+    )
+
+    # 1. Incidentes investigados (estado != borrador)
+    inc_base = [Incidente.empresa_id == empresa_id]
+    if desde_dt:
+        inc_base.append(Incidente.fecha >= desde_dt)
+    if hasta_dt:
+        inc_base.append(Incidente.fecha <= hasta_dt)
+
+    total_inc = db.query(func.count(Incidente.id)).filter(*inc_base).scalar() or 0
     investigados = (
         db.query(func.count(Incidente.id))
-        .filter(
-            Incidente.empresa_id == empresa_id,
-            Incidente.estado != EstadoIncidenteEnum.borrador,
-        )
+        .filter(*inc_base, Incidente.estado != EstadoIncidenteEnum.borrador)
         .scalar()
         or 0
     )
@@ -341,20 +358,19 @@ def calcular_cumplimiento(db: Session, empresa_id: UUID) -> dict:
     )
 
     # 2. Peligros con medida de control completada
+    peligro_base = [Peligro.empresa_id == empresa_id, Peligro.activo == True]
+    if desde_dt:
+        peligro_base.append(Peligro.fecha_creacion >= desde_dt)
+    if hasta_dt:
+        peligro_base.append(Peligro.fecha_creacion <= hasta_dt)
+
     total_peligros = (
-        db.query(func.count(Peligro.id))
-        .filter(Peligro.empresa_id == empresa_id, Peligro.activo == True)
-        .scalar()
-        or 0
+        db.query(func.count(Peligro.id)).filter(*peligro_base).scalar() or 0
     )
     peligros_con_control = (
         db.query(func.count(func.distinct(MedidaControl.peligro_id)))
         .join(Peligro, Peligro.id == MedidaControl.peligro_id)
-        .filter(
-            Peligro.empresa_id == empresa_id,
-            Peligro.activo == True,
-            MedidaControl.estado == EstadoControlEnum.completada,
-        )
+        .filter(*peligro_base, MedidaControl.estado == EstadoControlEnum.completada)
         .scalar()
         or 0
     )
@@ -363,20 +379,17 @@ def calcular_cumplimiento(db: Session, empresa_id: UUID) -> dict:
     )
 
     # 3. Capacitaciones activas con al menos una sesión realizada
-    total_cap = (
-        db.query(func.count(Capacitacion.id))
-        .filter(Capacitacion.empresa_id == empresa_id, Capacitacion.activo == True)
-        .scalar()
-        or 0
-    )
+    cap_base = [Capacitacion.empresa_id == empresa_id, Capacitacion.activo == True]
+    if desde_dt:
+        cap_base.append(Capacitacion.fecha_creacion >= desde_dt)
+    if hasta_dt:
+        cap_base.append(Capacitacion.fecha_creacion <= hasta_dt)
+
+    total_cap = db.query(func.count(Capacitacion.id)).filter(*cap_base).scalar() or 0
     cap_con_sesion = (
         db.query(func.count(func.distinct(SesionCapacitacion.capacitacion_id)))
         .join(Capacitacion, Capacitacion.id == SesionCapacitacion.capacitacion_id)
-        .filter(
-            Capacitacion.empresa_id == empresa_id,
-            Capacitacion.activo == True,
-            SesionCapacitacion.estado == "realizada",
-        )
+        .filter(*cap_base, SesionCapacitacion.estado == "realizada")
         .scalar()
         or 0
     )
@@ -385,11 +398,17 @@ def calcular_cumplimiento(db: Session, empresa_id: UUID) -> dict:
     )
 
     # 4. No conformidades cerradas
+    nc_base = [Auditoria.empresa_id == empresa_id]
+    if desde_dt:
+        nc_base.append(NoConformidad.fecha_creacion >= desde_dt)
+    if hasta_dt:
+        nc_base.append(NoConformidad.fecha_creacion <= hasta_dt)
+
     total_nc = (
         db.query(func.count(NoConformidad.id))
         .join(Hallazgo, Hallazgo.id == NoConformidad.hallazgo_id)
         .join(Auditoria, Auditoria.id == Hallazgo.auditoria_id)
-        .filter(Auditoria.empresa_id == empresa_id)
+        .filter(*nc_base)
         .scalar()
         or 0
     )
@@ -397,7 +416,7 @@ def calcular_cumplimiento(db: Session, empresa_id: UUID) -> dict:
         db.query(func.count(NoConformidad.id))
         .join(Hallazgo, Hallazgo.id == NoConformidad.hallazgo_id)
         .join(Auditoria, Auditoria.id == Hallazgo.auditoria_id)
-        .filter(Auditoria.empresa_id == empresa_id, NoConformidad.estado == "cerrada")
+        .filter(*nc_base, NoConformidad.estado == "cerrada")
         .scalar()
         or 0
     )

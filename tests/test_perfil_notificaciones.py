@@ -81,6 +81,9 @@ def test_actualizar_perfil_sin_token(client):
 # ── PUT /usuarios/me/foto ─────────────────────────────────────────
 
 
+PNG_BYTES = bytes([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) + b"\x00" * 20
+
+
 def test_subir_foto_exitoso(client, db, usuario_sst):
     token = _tokens_para(db, usuario_sst)
     with patch(
@@ -89,7 +92,7 @@ def test_subir_foto_exitoso(client, db, usuario_sst):
     ):
         resp = client.put(
             "/usuarios/me/foto",
-            files={"foto": ("foto.jpg", b"fake-image-bytes", "image/jpeg")},
+            files={"foto": ("foto.png", PNG_BYTES, "image/png")},
             headers=_headers(token),
         )
     assert resp.status_code == 200
