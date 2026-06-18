@@ -227,8 +227,11 @@ def test_asistencia_todos_los_estados_validos():
         assert datos.estado.value == estado
 
 
-def test_asistencia_default_presente():
+def test_asistencia_estado_requerido():
     import uuid
 
-    datos = AsistenciaCreate(sesion_id=uuid.uuid4(), empleado_id=uuid.uuid4())
-    assert datos.estado.value == "presente"
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        AsistenciaCreate(sesion_id=uuid.uuid4(), empleado_id=uuid.uuid4())

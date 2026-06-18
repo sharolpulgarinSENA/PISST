@@ -278,7 +278,9 @@ def test_get_asistencia_by_sesion(db, empresa, usuario_sst):
     sesion = make_sesion(db, empresa, cap)
     capacitacion_service.registrar_asistencia(
         db,
-        AsistenciaCreate(sesion_id=sesion.id, empleado_id=usuario_sst.id),
+        AsistenciaCreate(
+            sesion_id=sesion.id, empleado_id=usuario_sst.id, estado="presente"
+        ),
         empresa.id,
     )
     resultado = capacitacion_service.get_asistencia_by_sesion(db, sesion.id, empresa.id)
@@ -299,7 +301,9 @@ def test_get_historial_empleado(db, empresa, usuario_sst):
     sesion = make_sesion(db, empresa, cap)
     capacitacion_service.registrar_asistencia(
         db,
-        AsistenciaCreate(sesion_id=sesion.id, empleado_id=usuario_sst.id),
+        AsistenciaCreate(
+            sesion_id=sesion.id, empleado_id=usuario_sst.id, estado="presente"
+        ),
         empresa.id,
     )
     historial = capacitacion_service.get_historial_empleado(
