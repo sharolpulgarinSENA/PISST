@@ -78,7 +78,7 @@ class SesionUpdate(BaseModel):
 class AsistenciaCreate(BaseModel):
     sesion_id: UUID
     empleado_id: UUID
-    estado: Optional[EstadoAsistenciaEnum] = EstadoAsistenciaEnum.presente
+    estado: EstadoAsistenciaEnum
 
 
 class AsistenciaResponse(BaseModel):
