@@ -291,6 +291,66 @@ def usar_reset_token(token: str, nueva_password: str, db: Session) -> dict:
     return {"mensaje": "Contraseña actualizada exitosamente"}
 
 
+def login_con_google(credential: str, db: Session) -> dict:
+    import os
+
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token
+
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not client_id:
+        raise HTTPException(
+            status_code=503,
+            detail="Google Sign-In no está configurado en este servidor",
+        )
+
+    try:
+        id_info = id_token.verify_oauth2_token(
+            credential,
+            google_requests.Request(),
+            client_id,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=401, detail="Token de Google inválido o expirado"
+        )
+
+    email = id_info.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=400, detail="No se pudo obtener el email de Google"
+        )
+
+    user = db.query(User).filter(User.email == email, User.activo == True).first()
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="No existe una cuenta asociada a este correo de Google. Contacta al administrador.",
+        )
+
+    nuevo_session_token = secrets.token_hex(32)
+    user.session_token = nuevo_session_token
+    nuevo_refresh_token = secrets.token_hex(40)
+    user.refresh_token = nuevo_refresh_token
+    user.refresh_token_expira = datetime.now(timezone.utc).replace(
+        tzinfo=None
+    ) + timedelta(days=7)
+    db.commit()
+
+    access_token = create_access_token(
+        {"sub": str(user.id), "role": user.role.value, "sid": nuevo_session_token}
+    )
+
+    return {
+        "access_token": access_token,
+        "refresh_token": nuevo_refresh_token,
+        "id": str(user.id),
+        "role": user.role.value,
+        "nombre": user.nombre,
+        "debe_cambiar_password": user.debe_cambiar_password,
+    }
+
+
 def logout(refresh_token: str, db: Session) -> dict:
     user = (
         db.query(User)
