@@ -71,6 +71,10 @@ class LogoutRequest(BaseModel):
     refresh_token: str
 
 
+class GoogleLoginRequest(BaseModel):
+    credential: str
+
+
 class ApiKeyCreate(BaseModel):
     descripcion: Optional[str] = None
     rol: str = "cron"
@@ -145,6 +149,12 @@ def cambiar_password(
     return auth_service.cambiar_password(
         user_id, session_id, datos.password_actual, datos.nueva_password, db
     )
+
+
+@router.post("/google", response_model=LoginResponse)
+def login_google(datos: GoogleLoginRequest, db: Session = Depends(get_db)):
+    """Autentica al usuario con un ID token de Google. El usuario debe existir previamente."""
+    return auth_service.login_con_google(datos.credential, db)
 
 
 @router.post("/refresh")
