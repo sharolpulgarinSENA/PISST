@@ -39,7 +39,7 @@ El sistema centraliza en una sola plataforma:
 | **Contexto** | Proyecto académico-empresarial desarrollado en el SENA |
 | **Normativa aplicable** | Decreto 1072/2015, Resolución 0312/2019, Resolución 0156/2005 (FURAT) |
 | **Problema que resuelve** | Eliminar la gestión manual en papel del SG-SST, reducir tiempos de respuesta ante incidentes y mejorar la trazabilidad de acciones correctivas |
-| **Versión actual** | V1.4 |
+| **Versión actual** | V2.1 |
 
 ### 1.3 Roles del Sistema y Matriz de Acceso
 
@@ -63,7 +63,7 @@ El sistema implementa **control de acceso basado en roles (RBAC)** con 4 niveles
 - **Base de datos:** Neon PostgreSQL (cloud) ✅
 - **CI/CD:** GitHub Actions ejecutándose en cada push ✅
 - **Tests automáticos:** 440 tests pasando al 100% ✅
-- **Cobertura de código:** 95%+ ✅
+- **Cobertura de código:** 93% ✅
 
 ---
 
@@ -362,7 +362,7 @@ Feed de eventos en tiempo real, segmentado por rol. Diferente a `/metricas/alert
 
 **Endpoints:** `/admin/*`
 
-Protegidos con `X-Admin-Key` en el header.
+Protegidos con JWT + `require_role("admin")`. Solo el usuario con rol `admin` puede acceder.
 
 | Funcionalidad | Detalle |
 |---|---|
@@ -448,7 +448,7 @@ Protegidos con `X-Admin-Key` en el header.
 - El JWT incluye `sub` (user_id), `role` y `sid` (session_id)
 - La sesión es única: cada login invalida la sesión anterior
 - `POST /cambiar-password` valida el `session_token` manualmente (no usa `get_current_user` para permitir el cambio cuando `debe_cambiar_password=True`, pero sí valida la sesión activa)
-- `POST /admin/*` protegido adicionalmente con `ADMIN_SECRET_KEY` en header
+- `POST /admin/*` protegido con JWT + `require_role("admin")` — solo el usuario con rol `admin` puede acceder
 
 ### 5.2 Mecanismos de Protección Implementados
 
@@ -637,7 +637,7 @@ Los tests usan **SQLite en memoria** — no requieren conexión a Neon ni variab
 | `tests/test_cargo_router.py` | Endpoints HTTP de cargos: listar, crear, área inexistente, área otra empresa, duplicado | 8 |
 | `tests/test_incidente_router.py` | Endpoints HTTP de incidentes: CRUD, investigación, acciones correctivas, FURAT | 26 |
 
-**Total: 440 tests — cobertura global: 95%+**
+**Total: 440 tests — cobertura global: 93%**
 
 #### Diferencia entre tests de endpoint y tests de servicio
 
@@ -740,9 +740,9 @@ Configuración en [.flake8](.flake8) y [.pre-commit-config.yaml](.pre-commit-con
 Authorization: Bearer <access_token>
 ```
 
-Para endpoints admin:
+Para endpoints admin (rol `admin`):
 ```
-X-Admin-Key: <ADMIN_SECRET_KEY>
+Authorization: Bearer <access_token_del_admin>
 ```
 
 ### 7.2 Endpoints por Módulo
@@ -760,7 +760,7 @@ X-Admin-Key: <ADMIN_SECRET_KEY>
 | Notificaciones | `/notificaciones` | Autenticado |
 | Áreas | `/areas` | sst |
 | Cargos | `/cargos` | sst |
-| Administración | `/admin` | X-Admin-Key |
+| Administración | `/admin` | admin |
 | Analytics | `/analytics` | sst, gerencia |
 
 > Documentación interactiva disponible en `/docs` (solo en `ENVIRONMENT=development`)
