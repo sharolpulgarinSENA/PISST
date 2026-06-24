@@ -138,7 +138,7 @@ El empleado reporta una emergencia. Debes:
         contents=contents,
         config=types.GenerateContentConfig(
             system_instruction=construir_system_prompt(cargo, area, rol),
-            max_output_tokens=1000,
+            max_output_tokens=8192,
             temperature=0.7,
         ),
     )
