@@ -588,7 +588,7 @@ def generar_certificado(db: Session, evaluacion_id: UUID, empleado_id: UUID):
 
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER
-    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.pagesizes import landscape, letter
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import inch
     from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer
@@ -618,83 +618,176 @@ def generar_certificado(db: Session, evaluacion_id: UUID, empleado_id: UUID):
     )
     capacitacion = sesion.capacitacion
 
+    # Fecha en español
+    MESES = {
+        1: "enero",
+        2: "febrero",
+        3: "marzo",
+        4: "abril",
+        5: "mayo",
+        6: "junio",
+        7: "julio",
+        8: "agosto",
+        9: "septiembre",
+        10: "octubre",
+        11: "noviembre",
+        12: "diciembre",
+    }
+    fecha_obj = resultado.fecha_respuesta
+    fecha_str = f"{fecha_obj.day} de {MESES[fecha_obj.month]} de {fecha_obj.year}"
+
+    # ── Paleta ────────────────────────────────────────────────────
+    NAVY = colors.HexColor("#1B3A5C")
+    BLUE = colors.HexColor("#2563EB")
+    ACCENT = colors.HexColor("#0EA5E9")
+    GOLD = colors.HexColor("#B8860B")
+    WHITE = colors.white
+    MUTED = colors.HexColor("#64748B")
+    TEXT = colors.HexColor("#1E293B")
+
+    W, H = landscape(letter)  # 11 x 8.5 in
+
+    # ── Decoración de página con canvas ──────────────────────────
+    def decorar(canvas_obj, doc_obj):
+        canvas_obj.saveState()
+
+        # Fondo crema muy suave
+        canvas_obj.setFillColor(colors.HexColor("#FFFDF7"))
+        canvas_obj.rect(0, 0, W, H, fill=True, stroke=False)
+
+        # Borde exterior dorado grueso
+        canvas_obj.setStrokeColor(GOLD)
+        canvas_obj.setLineWidth(4)
+        canvas_obj.rect(18, 18, W - 36, H - 36, fill=False, stroke=True)
+
+        # Borde interior dorado fino
+        canvas_obj.setLineWidth(1)
+        canvas_obj.rect(26, 26, W - 52, H - 52, fill=False, stroke=True)
+
+        # Banda superior navy
+        canvas_obj.setFillColor(NAVY)
+        canvas_obj.rect(26, H - 80, W - 52, 54, fill=True, stroke=False)
+
+        # Línea de acento celeste debajo de la banda
+        canvas_obj.setFillColor(ACCENT)
+        canvas_obj.rect(26, H - 84, W - 52, 4, fill=True, stroke=False)
+
+        # PISST en la banda
+        canvas_obj.setFillColor(WHITE)
+        canvas_obj.setFont("Helvetica-Bold", 20)
+        canvas_obj.drawCentredString(W / 2, H - 52, "PISST")
+        canvas_obj.setFont("Helvetica", 9)
+        canvas_obj.setFillColor(colors.HexColor("#A0C4E8"))
+        canvas_obj.drawCentredString(
+            W / 2, H - 67, "Plataforma Integral de Seguridad y Salud en el Trabajo"
+        )
+
+        # Banda inferior navy
+        canvas_obj.setFillColor(NAVY)
+        canvas_obj.rect(26, 26, W - 52, 48, fill=True, stroke=False)
+
+        # Línea de acento sobre banda inferior
+        canvas_obj.setFillColor(ACCENT)
+        canvas_obj.rect(26, 74, W - 52, 3, fill=True, stroke=False)
+
+        # Texto footer en banda inferior
+        canvas_obj.setFont("Helvetica", 8)
+        canvas_obj.setFillColor(colors.HexColor("#CBD5E1"))
+        canvas_obj.drawCentredString(
+            W / 2,
+            56,
+            "Certificado generado automáticamente por PISST — "
+            "Sistema de Gestión de Seguridad y Salud en el Trabajo",
+        )
+        canvas_obj.setFillColor(colors.HexColor("#64748B"))
+        canvas_obj.setFont("Helvetica", 7.5)
+        canvas_obj.drawCentredString(
+            W / 2,
+            40,
+            f"ID de evaluación: {str(evaluacion_id)[:8]}...  |  "
+            f"Resolución 0312 de 2019 — Decreto 1072 de 2015",
+        )
+
+        # Ornamentos en esquinas (pequeños rombos dorados)
+        canvas_obj.setFillColor(GOLD)
+        for x, y in [(28, H - 82), (W - 30, H - 82), (28, 76), (W - 30, 76)]:
+            canvas_obj.circle(x, y, 4, fill=True, stroke=False)
+
+        canvas_obj.restoreState()
+
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=letter,
-        rightMargin=inch,
-        leftMargin=inch,
-        topMargin=inch,
-        bottomMargin=inch,
+        pagesize=landscape(letter),
+        rightMargin=0.9 * inch,
+        leftMargin=0.9 * inch,
+        topMargin=1.25 * inch,
+        bottomMargin=1.0 * inch,
     )
     styles = getSampleStyleSheet()
 
-    def estilo(nombre, size, color, bold=False, after=12):
+    def s(nombre, size, color, bold=False, after=10, before=0):
         return ParagraphStyle(
             nombre,
             parent=styles["Normal"],
             fontSize=size,
-            textColor=colors.HexColor(color),
+            textColor=color,
             alignment=TA_CENTER,
             fontName="Helvetica-Bold" if bold else "Helvetica",
             spaceAfter=after,
+            spaceBefore=before,
+            leading=size * 1.4,
         )
 
-    fecha_str = resultado.fecha_respuesta.strftime("%d de %B de %Y")
-
     contenido = [
-        Spacer(1, 0.3 * inch),
-        Paragraph("PISST", estilo("t1", 32, "#1E3A5F", bold=True, after=4)),
-        Paragraph(
-            "Plataforma Integral de Seguridad y Salud en el Trabajo",
-            estilo("t2", 11, "#666666", after=20),
-        ),
-        HRFlowable(width="100%", thickness=1, color=colors.HexColor("#eeeeee")),
-        Spacer(1, 0.4 * inch),
+        Spacer(1, 0.15 * inch),
+        # Título del certificado
         Paragraph(
             "CERTIFICADO DE APROBACIÓN",
-            estilo("t3", 16, "#1E3A5F", bold=True, after=24),
+            s("h1", 22, NAVY, bold=True, after=6),
         ),
         Paragraph(
-            "Este certificado se otorga a:", estilo("t4", 13, "#444444", after=8)
+            "SG-SST — Seguridad y Salud en el Trabajo",
+            s("h2", 10, MUTED, after=20),
         ),
-        Paragraph(empleado.nombre, estilo("t5", 26, "#1d4ed8", bold=True, after=8)),
+        # Línea decorativa dorada
+        HRFlowable(width="50%", thickness=2, color=GOLD, spaceAfter=16, spaceBefore=0),
+        # Otorgado a
+        Paragraph(
+            "Este certificado se otorga a:",
+            s("sub", 11, MUTED, after=6),
+        ),
+        # Nombre del empleado
+        Paragraph(
+            empleado.nombre,
+            s("nombre", 30, NAVY, bold=True, after=10),
+        ),
+        # Cargo si existe
+        Paragraph(
+            empleado.cargo.nombre if empleado.cargo else "",
+            s("cargo", 10, MUTED, after=14),
+        ),
         Paragraph(
             "por haber completado y aprobado satisfactoriamente la capacitación:",
-            estilo("t6", 13, "#444444", after=8),
+            s("desc", 11, TEXT, after=8),
         ),
+        # Título de la capacitación
         Paragraph(
-            capacitacion.titulo, estilo("t7", 14, "#1E3A5F", bold=True, after=20)
+            capacitacion.titulo,
+            s("cap", 15, BLUE, bold=True, after=20),
         ),
-        HRFlowable(width="60%", thickness=1, color=colors.HexColor("#1d4ed8")),
-        Spacer(1, 0.3 * inch),
+        # Línea separadora
+        HRFlowable(width="60%", thickness=1, color=ACCENT, spaceAfter=16),
+        # Detalles en línea
         Paragraph(
-            f"Evaluación: {evaluacion.titulo}", estilo("t8", 11, "#444444", after=6)
-        ),
-        Paragraph(
-            f"Puntaje obtenido: <b>{resultado.puntaje_final}%</b>",
-            estilo("t9", 11, "#444444", after=6),
-        ),
-        Paragraph(
-            f"Puntaje mínimo requerido: {evaluacion.puntaje_minimo}%",
-            estilo("t10", 11, "#444444", after=6),
-        ),
-        Paragraph(
-            f"Fecha de aprobación: {fecha_str}", estilo("t11", 11, "#444444", after=24)
-        ),
-        Spacer(1, 0.4 * inch),
-        HRFlowable(width="100%", thickness=1, color=colors.HexColor("#eeeeee")),
-        Spacer(1, 0.2 * inch),
-        Paragraph(
-            "PISST — Sistema de Gestión de Seguridad y Salud en el Trabajo",
-            estilo("t12", 10, "#999999", after=4),
-        ),
-        Paragraph(
-            "Este documento es generado automáticamente por el sistema.",
-            estilo("t13", 10, "#999999", after=0),
+            f"<b>Evaluación:</b> {evaluacion.titulo}&nbsp;&nbsp;&nbsp;"
+            f"<b>Puntaje obtenido:</b> {resultado.puntaje_final}%&nbsp;&nbsp;&nbsp;"
+            f"<b>Puntaje mínimo:</b> {evaluacion.puntaje_minimo}%&nbsp;&nbsp;&nbsp;"
+            f"<b>Fecha:</b> {fecha_str}",
+            s("detalles", 9.5, MUTED, after=0),
         ),
     ]
 
-    doc.build(contenido)
+    doc.build(contenido, onFirstPage=decorar, onLaterPages=decorar)
     buffer.seek(0)
     return buffer
