@@ -68,7 +68,7 @@ def create_incidente(
         descripcion=datos.descripcion,
         empresa_id=empresa_id,
         reportado_por_id=reportado_por_id,
-        trabajador_afectado_id=datos.trabajador_afectado_id,
+        trabajador_afectado_id=datos.trabajador_afectado_id or reportado_por_id,
     )
     db.add(incidente)
     db.flush()  # obtener el id sin hacer commit
