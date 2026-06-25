@@ -241,7 +241,7 @@ def generar_reporte_pdf(db: Session, empresa_id: UUID, periodo: str):
     from io import BytesIO
 
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import inch
@@ -256,133 +256,301 @@ def generar_reporte_pdf(db: Session, empresa_id: UUID, periodo: str):
 
     dashboard = get_dashboard_gerencia(db, empresa_id)
     kpis = dashboard["kpis"]
+    fecha_actual = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%d/%m/%Y")
+    W, H = letter
+
+    # ── Colores corporativos ────────────────────────────────────────
+    NAVY = colors.HexColor("#1B3A5C")
+    BLUE = colors.HexColor("#2563EB")
+    ACCENT = colors.HexColor("#0EA5E9")
+    WHITE = colors.white
+    GRAY_BG = colors.HexColor("#F8FAFC")
+    GRAY_LN = colors.HexColor("#E2E8F0")
+    MUTED = colors.HexColor("#64748B")
+
+    # KPI colors
+    C_GREEN = colors.HexColor("#DCFCE7")
+    C_RED = colors.HexColor("#FEE2E2")
+    C_YELLOW = colors.HexColor("#FEF9C3")
+    C_BLUE = colors.HexColor("#DBEAFE")
+
+    # ── Callbacks de página ─────────────────────────────────────────
+    def header_footer(canvas_obj, doc_obj):
+        canvas_obj.saveState()
+
+        # Banda superior azul
+        canvas_obj.setFillColor(NAVY)
+        canvas_obj.rect(0, H - 72, W, 72, fill=True, stroke=False)
+
+        # Línea de acento debajo de la banda
+        canvas_obj.setFillColor(ACCENT)
+        canvas_obj.rect(0, H - 76, W, 4, fill=True, stroke=False)
+
+        # Texto PISST en la banda
+        canvas_obj.setFillColor(WHITE)
+        canvas_obj.setFont("Helvetica-Bold", 22)
+        canvas_obj.drawString(0.75 * inch, H - 40, "PISST")
+
+        canvas_obj.setFont("Helvetica", 9)
+        canvas_obj.setFillColor(colors.HexColor("#A0C4E8"))
+        canvas_obj.drawString(
+            0.75 * inch,
+            H - 56,
+            "Plataforma Integral de Seguridad y Salud en el Trabajo",
+        )
+
+        # Fecha en la banda (derecha)
+        canvas_obj.setFont("Helvetica", 9)
+        canvas_obj.setFillColor(colors.HexColor("#CBD5E1"))
+        canvas_obj.drawRightString(W - 0.75 * inch, H - 40, f"Generado: {fecha_actual}")
+        canvas_obj.drawRightString(
+            W - 0.75 * inch, H - 56, f"Período: {periodo.capitalize()}"
+        )
+
+        # Footer
+        canvas_obj.setFillColor(GRAY_BG)
+        canvas_obj.rect(0, 0, W, 36, fill=True, stroke=False)
+        canvas_obj.setFillColor(GRAY_LN)
+        canvas_obj.rect(0, 36, W, 1, fill=True, stroke=False)
+
+        canvas_obj.setFont("Helvetica", 8)
+        canvas_obj.setFillColor(MUTED)
+        canvas_obj.drawString(
+            0.75 * inch, 14, "PISST — Reporte generado automáticamente por el sistema."
+        )
+        canvas_obj.drawRightString(W - 0.75 * inch, 14, f"Página {doc_obj.page}")
+
+        canvas_obj.restoreState()
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
-        rightMargin=inch,
-        leftMargin=inch,
-        topMargin=inch,
-        bottomMargin=inch,
+        rightMargin=0.75 * inch,
+        leftMargin=0.75 * inch,
+        topMargin=1.1 * inch,
+        bottomMargin=0.7 * inch,
     )
     styles = getSampleStyleSheet()
 
-    def est(nombre, size, color, bold=False, align=TA_CENTER, after=10):
+    def s(nombre, size, color, bold=False, align=TA_LEFT, after=6, before=0):
         return ParagraphStyle(
             nombre,
             parent=styles["Normal"],
             fontSize=size,
-            textColor=colors.HexColor(color),
+            textColor=color,
             alignment=align,
             fontName="Helvetica-Bold" if bold else "Helvetica",
             spaceAfter=after,
+            spaceBefore=before,
         )
 
-    fecha_actual = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%d/%m/%Y")
+    # ── Helpers de tabla ────────────────────────────────────────────
+    def tabla_styled(data, col_widths, hdr_color):
+        t = Table(data, colWidths=col_widths, repeatRows=1)
+        style = [
+            # Encabezado
+            ("BACKGROUND", (0, 0), (-1, 0), hdr_color),
+            ("TEXTCOLOR", (0, 0), (-1, 0), WHITE),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 10),
+            ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+            ("TOPPADDING", (0, 0), (-1, 0), 9),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 9),
+            # Filas
+            ("FONTSIZE", (0, 1), (-1, -1), 9.5),
+            ("TOPPADDING", (0, 1), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 1), (-1, -1), 7),
+            ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+            ("ALIGN", (0, 1), (0, -1), "LEFT"),
+            ("LEFTPADDING", (0, 1), (0, -1), 10),
+            ("GRID", (0, 0), (-1, -1), 0.4, GRAY_LN),
+            ("LINEBELOW", (0, 0), (-1, 0), 1.5, hdr_color),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [WHITE, GRAY_BG]),
+        ]
+        t.setStyle(TableStyle(style))
+        return t
 
-    contenido = [
-        Spacer(1, 0.2 * inch),
-        Paragraph("PISST", est("t1", 28, "#1E3A5F", bold=True, after=4)),
+    def kpi_cards(items):
+        """items: lista de (label, value, bg_color)"""
+        col_w = (W - 1.5 * inch) / len(items)
+        row = []
+        for label, value, bg in items:
+            cell = Table(
+                [
+                    [
+                        Paragraph(
+                            str(value),
+                            s("cv", 20, NAVY, bold=True, align=TA_CENTER, after=2),
+                        )
+                    ],
+                    [Paragraph(label, s("cl", 8, MUTED, align=TA_CENTER, after=0))],
+                ],
+                colWidths=[col_w - 8],
+            )
+            cell.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, -1), bg),
+                        ("TOPPADDING", (0, 0), (-1, -1), 10),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                        ("ROUNDEDCORNERS", [4, 4, 4, 4]),
+                        ("BOX", (0, 0), (-1, -1), 0.5, GRAY_LN),
+                    ]
+                )
+            )
+            row.append(cell)
+        wrapper = Table([row], colWidths=[col_w] * len(items))
+        wrapper.setStyle(
+            TableStyle(
+                [
+                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        return wrapper
+
+    # ── Contenido ───────────────────────────────────────────────────
+    contenido = []
+
+    # Título del reporte
+    contenido.append(Spacer(1, 6))
+    contenido.append(
         Paragraph(
-            "Plataforma Integral de Seguridad y Salud en el Trabajo",
-            est("t2", 11, "#666666", after=4),
-        ),
+            "Reporte Ejecutivo SG-SST",
+            s("h1", 16, NAVY, bold=True, align=TA_CENTER, after=4),
+        )
+    )
+    contenido.append(
         Paragraph(
-            f"Reporte Ejecutivo — Período: {periodo.capitalize()}",
-            est("t3", 13, "#1d4ed8", bold=True, after=4),
-        ),
-        Paragraph(f"Generado el: {fecha_actual}", est("t4", 10, "#999999", after=16)),
-        HRFlowable(width="100%", thickness=1, color=colors.HexColor("#eeeeee")),
-        Spacer(1, 0.3 * inch),
-        Paragraph("KPIs de Seguridad", est("t5", 14, "#1E3A5F", bold=True, after=12)),
-    ]
+            f"Período: <b>{periodo.capitalize()}</b>",
+            s("h2", 10, MUTED, align=TA_CENTER, after=16),
+        )
+    )
+    contenido.append(
+        HRFlowable(width="100%", thickness=1.5, color=ACCENT, spaceAfter=20)
+    )
 
-    data_kpis = [
-        ["Indicador", "Valor"],
-        ["Total Trabajadores", str(kpis["total_trabajadores"])],
-        ["Total Accidentes", str(kpis["total_accidentes"])],
-        ["Días Perdidos", str(kpis["dias_perdidos"])],
-        ["Tasa de Accidentalidad", f"{kpis['tasa_accidentalidad']}%"],
-        ["Índice de Frecuencia", str(kpis["indice_frecuencia"])],
-        ["Índice de Severidad", str(kpis["indice_severidad"])],
-    ]
+    # ── Sección 1: Tarjetas KPI ─────────────────────────────────────
+    contenido.append(
+        Paragraph(
+            "Indicadores Clave de Seguridad (KPIs)",
+            s("sh", 11, NAVY, bold=True, after=10),
+        )
+    )
 
-    tabla_kpis = Table(data_kpis, colWidths=[3.5 * inch, 2.5 * inch])
-    tabla_kpis.setStyle(
-        TableStyle(
+    contenido.append(
+        kpi_cards(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E3A5F")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 11),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("FONTSIZE", (0, 1), (-1, -1), 10),
+                ("Trabajadores", kpis["total_trabajadores"], C_BLUE),
+                ("Accidentes (año)", kpis["total_accidentes"], C_RED),
+                ("Días Perdidos", kpis["dias_perdidos"], C_YELLOW),
+                ("Cumplimiento SG-SST", f"{dashboard['cumplimiento_sgsst']}%", C_GREEN),
+            ]
+        )
+    )
+    contenido.append(Spacer(1, 12))
+    contenido.append(
+        kpi_cards(
+            [
+                ("Incidentes Activos", dashboard["incidentes_activos"], C_RED),
+                ("Incidentes Últ. Mes", dashboard["incidentes_ultimo_mes"], C_YELLOW),
+                ("Capacitaciones", dashboard["total_capacitaciones"], C_BLUE),
                 (
-                    "ROWBACKGROUNDS",
-                    (0, 1),
-                    (-1, -1),
-                    [colors.HexColor("#F1EFE8"), colors.white],
+                    "Acciones Vencidas",
+                    dashboard["acciones_vencidas"],
+                    C_RED if dashboard["acciones_vencidas"] > 0 else C_GREEN,
                 ),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#dddddd")),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ]
         )
     )
 
-    contenido.append(tabla_kpis)
-    contenido.append(Spacer(1, 0.3 * inch))
+    contenido.append(Spacer(1, 20))
     contenido.append(
-        Paragraph("Resumen Ejecutivo", est("t6", 14, "#1E3A5F", bold=True, after=12))
+        HRFlowable(width="100%", thickness=0.5, color=GRAY_LN, spaceAfter=16)
+    )
+
+    # ── Sección 2: Tabla KPIs detallados ───────────────────────────
+    contenido.append(
+        Paragraph(
+            "Detalle de KPIs de Seguridad", s("sh", 11, NAVY, bold=True, after=10)
+        )
+    )
+
+    data_kpis = [
+        ["Indicador", "Valor", "Referencia"],
+        ["Total Trabajadores Activos", str(kpis["total_trabajadores"]), "—"],
+        ["Total Accidentes (año en curso)", str(kpis["total_accidentes"]), "Meta: 0"],
+        ["Días Perdidos por Incapacidad", str(kpis["dias_perdidos"]), "Meta: < 30"],
+        ["Tasa de Accidentalidad", f"{kpis['tasa_accidentalidad']}%", "Meta: < 5%"],
+        ["Índice de Frecuencia (IF)", str(kpis["indice_frecuencia"]), "Meta: < 10"],
+        ["Índice de Severidad (IS)", str(kpis["indice_severidad"]), "Meta: < 200"],
+    ]
+    cw = W - 1.5 * inch
+    contenido.append(tabla_styled(data_kpis, [cw * 0.50, cw * 0.25, cw * 0.25], NAVY))
+    contenido.append(Spacer(1, 20))
+
+    # ── Sección 3: Resumen ejecutivo ────────────────────────────────
+    contenido.append(
+        HRFlowable(width="100%", thickness=0.5, color=GRAY_LN, spaceAfter=16)
+    )
+    contenido.append(
+        Paragraph(
+            "Resumen Ejecutivo del SG-SST", s("sh", 11, NAVY, bold=True, after=10)
+        )
     )
 
     data_resumen = [
-        ["Métrica", "Valor"],
-        ["Cumplimiento SG-SST", f"{dashboard['cumplimiento_sgsst']}%"],
-        ["Incidentes Activos", str(dashboard["incidentes_activos"])],
-        ["Incidentes Último Mes", str(dashboard["incidentes_ultimo_mes"])],
-        ["Capacitaciones Activas", str(dashboard["total_capacitaciones"])],
-        ["Acciones Correctivas Vencidas", str(dashboard["acciones_vencidas"])],
+        ["Métrica", "Estado Actual", "Observación"],
+        [
+            "Cumplimiento SG-SST",
+            f"{dashboard['cumplimiento_sgsst']}%",
+            "Acciones correctivas completadas / total",
+        ],
+        [
+            "Incidentes Activos",
+            str(dashboard["incidentes_activos"]),
+            "Sin estado cerrado",
+        ],
+        [
+            "Incidentes Último Mes",
+            str(dashboard["incidentes_ultimo_mes"]),
+            "Período seleccionado",
+        ],
+        [
+            "Capacitaciones Activas",
+            str(dashboard["total_capacitaciones"]),
+            "Programas vigentes",
+        ],
+        [
+            "Acciones Correctivas Vencidas",
+            str(dashboard["acciones_vencidas"]),
+            "Requieren atención inmediata",
+        ],
     ]
-
-    tabla_resumen = Table(data_resumen, colWidths=[3.5 * inch, 2.5 * inch])
-    tabla_resumen.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1d4ed8")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 11),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("FONTSIZE", (0, 1), (-1, -1), 10),
-                (
-                    "ROWBACKGROUNDS",
-                    (0, 1),
-                    (-1, -1),
-                    [colors.HexColor("#F1EFE8"), colors.white],
-                ),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#dddddd")),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ]
-        )
-    )
-
-    contenido.append(tabla_resumen)
-    contenido.append(Spacer(1, 0.4 * inch))
     contenido.append(
-        HRFlowable(width="100%", thickness=1, color=colors.HexColor("#eeeeee"))
+        tabla_styled(data_resumen, [cw * 0.38, cw * 0.22, cw * 0.40], BLUE)
     )
-    contenido.append(Spacer(1, 0.2 * inch))
+    contenido.append(Spacer(1, 10))
+
+    # Nota legal
+    contenido.append(
+        HRFlowable(width="100%", thickness=0.5, color=GRAY_LN, spaceAfter=8)
+    )
     contenido.append(
         Paragraph(
-            "PISST — Reporte generado automáticamente por el sistema.",
-            est("t7", 9, "#999999", after=0),
+            "Este reporte fue generado automáticamente por la plataforma PISST con base en los datos registrados al momento de la descarga. "
+            "Los indicadores se calculan según la metodología del Decreto 1072 de 2015 y la Resolución 0312 de 2019.",
+            s("nota", 7.5, MUTED, align=TA_LEFT, after=0),
         )
     )
 
-    doc.build(contenido)
+    doc.build(contenido, onFirstPage=header_footer, onLaterPages=header_footer)
     buffer.seek(0)
     return buffer
 
