@@ -563,108 +563,379 @@ def generar_reporte_excel(db: Session, empresa_id: UUID, periodo: str):
 
     dashboard = get_dashboard_gerencia(db, empresa_id)
     kpis = dashboard["kpis"]
+    fecha = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%d/%m/%Y")
 
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Reporte PISST"
 
-    azul_navy = "1E3A5F"
-    azul_btn = "1d4ed8"
+    # ── Paleta (misma que el PDF) ───────────────────────────────────
+    NAVY = "1B3A5C"
+    ACCENT = "0EA5E9"
+    WHITE = "FFFFFF"
+    GRAY_BG = "F8FAFC"
+    GRAY_LN = "E2E8F0"
+    MUTED = "64748B"
+    TEXT = "1E293B"
+    C_GREEN = "DCFCE7"
+    C_RED = "FEE2E2"
+    C_YELLOW = "FEF9C3"
+    C_BLUE = "DBEAFE"
+    C_GREEN_TXT = "166534"
+    C_RED_TXT = "991B1B"
+    C_YELLOW_TXT = "854D0E"
+    C_BLUE_TXT = "1E40AF"
 
-    header_font = Font(name="Calibri", bold=True, color="FFFFFF", size=12)
-    title_font = Font(name="Calibri", bold=True, color=azul_navy, size=16)
-    sub_font = Font(name="Calibri", bold=True, color=azul_btn, size=11)
-    normal_font = Font(name="Calibri", size=10)
+    # ── Estilos reutilizables ───────────────────────────────────────
+    def font(bold=False, size=10, color=TEXT):
+        return Font(name="Calibri", bold=bold, size=size, color=color)
 
-    fill_navy = PatternFill("solid", fgColor=azul_navy)
-    fill_azul = PatternFill("solid", fgColor=azul_btn)
-    fill_gris = PatternFill("solid", fgColor="F1EFE8")
-    fill_blanco = PatternFill("solid", fgColor="FFFFFF")
+    def fill(color):
+        return PatternFill("solid", fgColor=color)
 
-    center = Alignment(horizontal="center", vertical="center")
+    def align(h="center", v="center", wrap=False):
+        return Alignment(horizontal=h, vertical=v, wrap_text=wrap)
 
-    thin = Side(style="thin", color="DDDDDD")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    def border_thin(color=GRAY_LN):
+        s = Side(style="thin", color=color)
+        return Border(left=s, right=s, top=s, bottom=s)
 
-    ws.merge_cells("A1:C1")
-    ws["A1"] = "PISST — Reporte Ejecutivo"
-    ws["A1"].font = title_font
-    ws["A1"].alignment = center
+    def border_bottom(color=ACCENT):
+        return Border(bottom=Side(style="medium", color=color))
 
-    ws.merge_cells("A2:C2")
-    ws["A2"] = (
-        f"Período: {periodo.capitalize()} | Generado: {datetime.now(timezone.utc).replace(tzinfo=None).strftime('%d/%m/%Y')}"
+    def set_cell(
+        ws,
+        row,
+        col,
+        value,
+        bold=False,
+        size=10,
+        color=TEXT,
+        bg=None,
+        h="center",
+        v="center",
+        wrap=False,
+        brd=None,
+    ):
+        c = ws.cell(row=row, column=col, value=value)
+        c.font = font(bold=bold, size=size, color=color)
+        c.alignment = align(h=h, v=v, wrap=wrap)
+        if bg:
+            c.fill = fill(bg)
+        if brd:
+            c.border = brd
+        return c
+
+    # ── Anchos de columna ───────────────────────────────────────────
+    ws.column_dimensions["A"].width = 4  # margen izq
+    ws.column_dimensions["B"].width = 34  # etiqueta / métrica
+    ws.column_dimensions["C"].width = 16  # valor
+    ws.column_dimensions["D"].width = 24  # referencia / observación
+    ws.column_dimensions["E"].width = 4  # margen der
+
+    # ── Fila 1: banda de encabezado ─────────────────────────────────
+    ws.row_dimensions[1].height = 14
+    for col in range(1, 6):
+        ws.cell(row=1, column=col).fill = fill(NAVY)
+
+    # ── Fila 2: título PISST ────────────────────────────────────────
+    ws.row_dimensions[2].height = 32
+    ws.merge_cells("B2:D2")
+    set_cell(
+        ws,
+        2,
+        2,
+        "PISST — Reporte Ejecutivo SG-SST",
+        bold=True,
+        size=16,
+        color=WHITE,
+        bg=NAVY,
+        h="left",
     )
-    ws["A2"].font = Font(name="Calibri", color="666666", size=10)
-    ws["A2"].alignment = center
+    for col in (1, 5):
+        ws.cell(row=2, column=col).fill = fill(NAVY)
 
+    # ── Fila 3: subtítulo ───────────────────────────────────────────
+    ws.row_dimensions[3].height = 20
+    ws.merge_cells("B3:D3")
+    set_cell(
+        ws,
+        3,
+        2,
+        f"Período: {periodo.capitalize()}   |   Generado: {fecha}   |   Plataforma Integral de SST",
+        size=9,
+        color="A0C4E8",
+        bg=NAVY,
+        h="left",
+    )
+    for col in (1, 5):
+        ws.cell(row=3, column=col).fill = fill(NAVY)
+
+    # ── Fila 4: banda de acento ─────────────────────────────────────
+    ws.row_dimensions[4].height = 5
+    for col in range(1, 6):
+        ws.cell(row=4, column=col).fill = fill(ACCENT)
+
+    # ── Fila 5: espacio ─────────────────────────────────────────────
+    ws.row_dimensions[5].height = 10
+
+    # ── Helper: encabezado de sección ──────────────────────────────
+    def seccion(titulo):
+        r = ws.max_row + 1
+        ws.row_dimensions[r].height = 22
+        ws.merge_cells(f"B{r}:D{r}")
+        set_cell(
+            ws, r, 2, f"  {titulo}", bold=True, size=10, color=WHITE, bg=NAVY, h="left"
+        )
+        ws.cell(row=r, column=1).fill = fill(GRAY_BG)
+        ws.cell(row=r, column=5).fill = fill(GRAY_BG)
+        return r
+
+    # ── Helper: fila de encabezado de tabla ─────────────────────────
+    def tabla_header(cols):
+        r = ws.max_row + 1
+        ws.row_dimensions[r].height = 20
+        for i, (col_idx, txt) in enumerate(cols):
+            set_cell(
+                ws,
+                r,
+                col_idx,
+                txt,
+                bold=True,
+                size=9,
+                color=WHITE,
+                bg=NAVY,
+                brd=border_thin("1B3A5C"),
+            )
+        ws.cell(row=r, column=1).fill = fill(GRAY_BG)
+        ws.cell(row=r, column=5).fill = fill(GRAY_BG)
+        return r
+
+    # ── Helper: fila de dato ────────────────────────────────────────
+    def fila_dato(label, valor, referencia=None, i=0, val_bg=None, val_color=TEXT):
+        r = ws.max_row + 1
+        ws.row_dimensions[r].height = 18
+        bg = GRAY_BG if i % 2 == 0 else WHITE
+        set_cell(
+            ws,
+            r,
+            2,
+            label,
+            bold=False,
+            size=9,
+            color=TEXT,
+            bg=bg,
+            h="left",
+            brd=border_thin(),
+        )
+        set_cell(
+            ws,
+            r,
+            3,
+            valor,
+            bold=True,
+            size=10,
+            color=val_color,
+            bg=val_bg or bg,
+            brd=border_thin(),
+        )
+        if referencia is not None:
+            set_cell(
+                ws,
+                r,
+                4,
+                referencia,
+                size=8,
+                color=MUTED,
+                bg=bg,
+                h="left",
+                brd=border_thin(),
+            )
+        ws.cell(row=r, column=1).fill = fill(GRAY_BG)
+        ws.cell(row=r, column=5).fill = fill(GRAY_BG)
+
+    # ── Helper: tarjeta KPI (2 cols: etiqueta + valor coloreado) ────
+    def tarjetas_kpi(items):
+        r = ws.max_row + 1
+        ws.row_dimensions[r].height = 14
+        r2 = r + 1
+        ws.row_dimensions[r2].height = 28
+        r3 = r + 2
+        ws.row_dimensions[r3].height = 16
+
+        # items = [(label, valor, bg, txt_color), ...]
+        # Distribuimos en B, C, D (3 columnas repartidas en 2 filas de tarjetas)
+        cols_map = [2, 3, 4]
+        for idx, (label, valor, bg, txt_c) in enumerate(items[:3]):
+            col = cols_map[idx]
+            # fila etiqueta
+            set_cell(ws, r2, col, label, size=8, color=MUTED, bg=bg, h="center")
+            # fila valor
+            set_cell(
+                ws,
+                r3,
+                col,
+                str(valor),
+                bold=True,
+                size=13,
+                color=txt_c,
+                bg=bg,
+                h="center",
+            )
+            ws.cell(row=r2, column=col).border = border_thin()
+            ws.cell(row=r3, column=col).border = border_thin()
+
+        for row in (r, r2, r3):
+            ws.cell(row=row, column=1).fill = fill(GRAY_BG)
+            ws.cell(row=row, column=5).fill = fill(GRAY_BG)
+
+    # ── Espacio antes de sección 1 ──────────────────────────────────
     ws.append([])
+    ws.row_dimensions[ws.max_row].height = 6
 
-    ws.append(["KPIs de Seguridad", "", ""])
-    ws[f"A{ws.max_row}"].font = sub_font
+    # ── Sección 1: KPIs ─────────────────────────────────────────────
+    seccion("INDICADORES CLAVE DE SEGURIDAD (KPIs)")
+    ws.append([])
+    ws.row_dimensions[ws.max_row].height = 6
 
-    ws.append(["Indicador", "Valor", ""])
-    for col in range(1, 3):
-        cell = ws.cell(row=ws.max_row, column=col)
-        cell.fill = fill_navy
-        cell.font = header_font
-        cell.alignment = center
-        cell.border = border
+    tabla_header([(2, "Indicador"), (3, "Valor"), (4, "Referencia / Meta")])
 
     kpi_rows = [
-        ("Total Trabajadores", kpis["total_trabajadores"]),
-        ("Total Accidentes", kpis["total_accidentes"]),
-        ("Días Perdidos", kpis["dias_perdidos"]),
-        ("Tasa de Accidentalidad", f"{kpis['tasa_accidentalidad']}%"),
-        ("Índice de Frecuencia", kpis["indice_frecuencia"]),
-        ("Índice de Severidad", kpis["indice_severidad"]),
+        (
+            "Total Trabajadores Activos",
+            kpis["total_trabajadores"],
+            "—",
+            C_BLUE,
+            C_BLUE_TXT,
+        ),
+        (
+            "Total Accidentes (año en curso)",
+            kpis["total_accidentes"],
+            "Meta: 0",
+            C_RED,
+            C_RED_TXT,
+        ),
+        (
+            "Días Perdidos por Incapacidad",
+            kpis["dias_perdidos"],
+            "Meta: < 30",
+            C_YELLOW,
+            C_YELLOW_TXT,
+        ),
+        (
+            "Tasa de Accidentalidad",
+            f"{kpis['tasa_accidentalidad']}%",
+            "Meta: < 5%",
+            C_YELLOW,
+            C_YELLOW_TXT,
+        ),
+        (
+            "Índice de Frecuencia (IF)",
+            str(kpis["indice_frecuencia"]),
+            "Meta: < 10",
+            C_RED,
+            C_RED_TXT,
+        ),
+        (
+            "Índice de Severidad (IS)",
+            str(kpis["indice_severidad"]),
+            "Meta: < 200",
+            C_RED,
+            C_RED_TXT,
+        ),
     ]
-
-    for i, (indicador, valor) in enumerate(kpi_rows):
-        ws.append([indicador, valor, ""])
-        fill = fill_gris if i % 2 == 0 else fill_blanco
-        for col in range(1, 3):
-            cell = ws.cell(row=ws.max_row, column=col)
-            cell.fill = fill
-            cell.font = normal_font
-            cell.alignment = center
-            cell.border = border
+    for i, (lbl, val, ref, bg, tc) in enumerate(kpi_rows):
+        fila_dato(lbl, val, ref, i=i, val_bg=bg, val_color=tc)
 
     ws.append([])
+    ws.row_dimensions[ws.max_row].height = 10
 
-    ws.append(["Resumen Ejecutivo", "", ""])
-    ws[f"A{ws.max_row}"].font = sub_font
+    # ── Sección 2: Resumen ejecutivo ────────────────────────────────
+    seccion("RESUMEN EJECUTIVO DEL SG-SST")
+    ws.append([])
+    ws.row_dimensions[ws.max_row].height = 6
 
-    ws.append(["Métrica", "Valor", ""])
-    for col in range(1, 3):
-        cell = ws.cell(row=ws.max_row, column=col)
-        cell.fill = fill_azul
-        cell.font = header_font
-        cell.alignment = center
-        cell.border = border
+    tabla_header([(2, "Métrica"), (3, "Estado Actual"), (4, "Observación")])
+
+    cumpl = dashboard["cumplimiento_sgsst"]
+    cumpl_bg = C_GREEN if cumpl >= 80 else C_YELLOW if cumpl >= 50 else C_RED
+    cumpl_tc = (
+        C_GREEN_TXT if cumpl >= 80 else C_YELLOW_TXT if cumpl >= 50 else C_RED_TXT
+    )
+
+    venc = dashboard["acciones_vencidas"]
+    venc_bg = C_RED if venc > 0 else C_GREEN
+    venc_tc = C_RED_TXT if venc > 0 else C_GREEN_TXT
 
     resumen_rows = [
-        ("Cumplimiento SG-SST", f"{dashboard['cumplimiento_sgsst']}%"),
-        ("Incidentes Activos", dashboard["incidentes_activos"]),
-        ("Incidentes Último Mes", dashboard["incidentes_ultimo_mes"]),
-        ("Capacitaciones Activas", dashboard["total_capacitaciones"]),
-        ("Acciones Vencidas", dashboard["acciones_vencidas"]),
+        (
+            "Cumplimiento SG-SST",
+            f"{cumpl}%",
+            "Acciones completadas / total",
+            cumpl_bg,
+            cumpl_tc,
+        ),
+        (
+            "Incidentes Activos",
+            str(dashboard["incidentes_activos"]),
+            "Sin estado cerrado",
+            C_RED,
+            C_RED_TXT,
+        ),
+        (
+            "Incidentes Último Mes",
+            str(dashboard["incidentes_ultimo_mes"]),
+            "Período seleccionado",
+            C_YELLOW,
+            C_YELLOW_TXT,
+        ),
+        (
+            "Capacitaciones Activas",
+            str(dashboard["total_capacitaciones"]),
+            "Programas vigentes",
+            C_BLUE,
+            C_BLUE_TXT,
+        ),
+        (
+            "Acciones Correctivas Vencidas",
+            str(venc),
+            "Requieren atención inmediata",
+            venc_bg,
+            venc_tc,
+        ),
     ]
+    for i, (lbl, val, obs, bg, tc) in enumerate(resumen_rows):
+        fila_dato(lbl, val, obs, i=i, val_bg=bg, val_color=tc)
 
-    for i, (metrica, valor) in enumerate(resumen_rows):
-        ws.append([metrica, valor, ""])
-        fill = fill_gris if i % 2 == 0 else fill_blanco
-        for col in range(1, 3):
-            cell = ws.cell(row=ws.max_row, column=col)
-            cell.fill = fill
-            cell.font = normal_font
-            cell.alignment = center
-            cell.border = border
+    ws.append([])
+    ws.row_dimensions[ws.max_row].height = 10
 
-    ws.column_dimensions["A"].width = 35
-    ws.column_dimensions["B"].width = 20
-    ws.column_dimensions["C"].width = 5
-    ws.row_dimensions[1].height = 30
+    # ── Footer ──────────────────────────────────────────────────────
+    r_foot = ws.max_row + 1
+    ws.row_dimensions[r_foot].height = 5
+    for col in range(1, 6):
+        ws.cell(row=r_foot, column=col).fill = fill(ACCENT)
+
+    r_foot2 = r_foot + 1
+    ws.row_dimensions[r_foot2].height = 18
+    ws.merge_cells(f"B{r_foot2}:D{r_foot2}")
+    set_cell(
+        ws,
+        r_foot2,
+        2,
+        f"PISST — Reporte generado automáticamente el {fecha}. "
+        "Los indicadores se calculan según el Decreto 1072 de 2015 y la Resolución 0312 de 2019.",
+        size=7.5,
+        color=MUTED,
+        bg=GRAY_BG,
+        h="left",
+        wrap=True,
+    )
+    ws.cell(row=r_foot2, column=1).fill = fill(GRAY_BG)
+    ws.cell(row=r_foot2, column=5).fill = fill(GRAY_BG)
+
+    # ── Ocultar líneas de cuadrícula ────────────────────────────────
+    ws.sheet_view.showGridLines = False
 
     buffer = BytesIO()
     wb.save(buffer)
