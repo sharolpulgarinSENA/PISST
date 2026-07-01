@@ -93,14 +93,55 @@ Documentación interactiva (Swagger): `http://localhost:8000/docs`
 ## Estructura del proyecto
 
 ```
-app/
-  core/        # Configuración, base de datos, dependencias, seguridad
-  models/      # Modelos SQLAlchemy
-  schemas/     # Schemas Pydantic
-  routers/     # Endpoints FastAPI
-  services/    # Lógica de negocio y generación de PDFs
-migrations/    # Migraciones Alembic
-main.py        # Punto de entrada
+PISST/
+│
+├── app/                          # Código fuente principal
+│   ├── core/
+│   │   ├── database.py           # Conexión SQLAlchemy a Neon, función get_db
+│   │   ├── security.py           # JWT (crear/decodificar), bcrypt, validación de contraseña
+│   │   └── deps.py               # get_current_user, require_role, require_api_key
+│   ├── models/                   # 17 modelos SQLAlchemy (tablas de BD)
+│   ├── schemas/                  # DTOs Pydantic: validan entrada y serializan salida
+│   ├── routers/                  # 13 routers FastAPI (endpoints HTTP)
+│   └── services/                 # Lógica de negocio, generación de PDF/Excel
+│
+├── docs/                         # Documentación técnica del proyecto
+│   ├── DOCUMENTACION_TECNICA.md  # Referencia técnica completa (sprints, endpoints, BD)
+│   ├── RESUMEN_PROYECTO.md       # Resumen ejecutivo del backend
+│   ├── sustentacion_backend_pisst.md   # Guía de sustentación técnica
+│   └── simulacro_sustentacion_pisst.md # 27 preguntas con respuestas para practicar
+│
+├── migrations/                   # Migraciones Alembic (21 en cadena lineal)
+│   └── versions/                 # Archivos de migración por sprint
+│
+├── notebooks/                    # Jupyter Notebooks de analítica de datos
+│   ├── 01_exploracion_incidentes.ipynb
+│   ├── 02_exploracion_riesgos.ipynb
+│   └── 03_exploracion_capacitaciones.ipynb
+│
+├── tests/                        # 26 archivos de tests, 440 tests
+│
+├── data/                         # Datos procesados por los notebooks (ignorado por git)
+│
+├── main.py                       # Punto de entrada: app FastAPI, middlewares, routers
+├── requirements.txt              # Dependencias Python del proyecto
+├── runtime.txt                   # Versión de Python para Render (python-3.11.0)
+├── render.yaml                   # Configuración de despliegue en Render (infra como código)
+├── alembic.ini                   # Configuración de Alembic para migraciones
+├── pytest.ini                    # Configuración de pytest (pythonpath, testpaths)
+├── .flake8                       # Reglas de linting (max-line-length, exclusiones)
+├── .pre-commit-config.yaml       # Hooks pre-commit: black, isort, flake8
+├── docker-compose.yml            # PostgreSQL local para desarrollo sin Neon
+├── CONTRIBUTING.md               # Guía de contribución: convenciones de migraciones y ramas
+├── .env.example                  # Plantilla de variables de entorno (sin valores reales)
+├── .env                          # Variables de entorno reales — NUNCA se sube a git
+├── seed.py                       # Script para poblar la BD con datos de prueba
+│
+│   ── Generados automáticamente (ignorados por git) ──
+├── venv/                         # Entorno virtual Python
+├── htmlcov/                      # Reporte HTML de cobertura (pytest --cov)
+├── test.db                       # Base de datos SQLite generada por los tests
+└── .coverage                     # Archivo binario de cobertura de pytest
 ```
 
 ---
