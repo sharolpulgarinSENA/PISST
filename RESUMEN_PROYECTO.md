@@ -1,7 +1,7 @@
 # PISST — Resumen General del Proyecto
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
 
-**Versión:** 1.0 | **Fecha:** 2026-05-31 | **Estado:** Producción
+**Versión:** 2.0 | **Fecha:** 2026-07-01 | **Estado:** Producción
 
 ---
 
@@ -107,7 +107,7 @@ PISST/
 │   ├── schemas/             # DTOs Pydantic por módulo
 │   ├── routers/             # 11 routers FastAPI (endpoints HTTP)
 │   └── services/            # 12 servicios con lógica de negocio
-├── tests/                   # 12 archivos de tests, 176 tests
+├── tests/                   # 26 archivos de tests, 440 tests
 ├── alembic/                 # Migraciones de BD
 └── DOCUMENTACION_TECNICA.md
 ```
@@ -248,7 +248,28 @@ Ciclo de vida: `planificada → en_ejecucion → completada`
 | `POST /chat/reporte-rapido` | Empleado reporta incidente directamente desde el chat |
 | `GET /chat/historial` | Historial paginado de conversaciones del usuario |
 
-### 3.9 Administración (`/admin/*`)
+### 3.8 Analytics (`/analytics/*`)
+
+| Endpoint | Función |
+|----------|---------|
+| `GET /analytics/incidentes` | Distribución por tipo/severidad, tasa mensual, tendencia |
+| `GET /analytics/riesgos` | Niveles de riesgo, % con medidas implementadas, críticos sin control |
+| `GET /analytics/capacitaciones` | Tasa de aprobación, asistencia promedio, alertas < 80% |
+| `GET /analytics/cumplimiento` | Score SG-SST 0–100 desglosado por módulo |
+
+Módulo de solo lectura. Usa agregaciones SQL (`func.count`, `GROUP BY`) para máximo rendimiento. Estrictamente multi-tenant — toda query filtra por `empresa_id`.
+
+### 3.9 Notificaciones (`/notificaciones/*`)
+
+| Endpoint | Función |
+|----------|---------|
+| `GET /notificaciones/feed` | Feed paginado de eventos, segmentado por rol |
+| `PATCH /notificaciones/{id}/leido` | Marca una notificación como leída |
+| `PATCH /notificaciones/leer-todas` | Marca todas como leídas |
+
+Eventos generados automáticamente al crear incidentes, cambiar estados, crear capacitaciones, etc. SST/Gerencia ven notificaciones de empresa; empleados ven solo las suyas. Retención: 30 días.
+
+### 3.10 Administración (`/admin/*`)
 
 Todos requieren header `X-Admin-Key`.
 
@@ -331,6 +352,73 @@ Todos requieren header `X-Admin-Key`.
   - PDF y Excel: validación de estructura y firma de archivo
 - **+20 tests | Cobertura: 84% → 90%**
 
+### Sprint 9 — Integración Frontend I y II
+
+- Contrato de API ajustado para el equipo frontend: `debe_cambiar_password` en login, `area_nombre`/`cargo_nombre` en usuarios
+- `GET /capacitaciones/` devuelve todas por defecto; `?activo=true|false` para filtrar
+- **+11 tests | Cobertura: 90% → 91%**
+
+### Sprint 10 — Módulo de Analytics con Pandas
+
+- `analytics_service.py`: 4 funciones analíticas con agregaciones SQL y Pandas
+- 4 endpoints `/analytics/*` con RBAC (sst, gerencia)
+- 3 Jupyter Notebooks en `notebooks/` para exploración y sustentación de datos
+- **+12 tests | Total: 207 tests**
+
+### Sprint 11 — Integración Frontend III: incidentes y chat
+
+- Nuevos endpoints: `GET/PATCH /incidentes/{id}/investigacion`, `GET /incidentes/{id}/acciones`
+- SASBOT: `POST /chat/escalar` y `POST /chat/archivo` (Gemini vision, PDF e imágenes)
+- **Total: 207 tests**
+
+### Sprint 12 — Perfil de usuario y notificaciones
+
+- Perfil propio: `PATCH /usuarios/me`, `PUT /usuarios/me/foto` (Cloudinary), `GET /usuarios/me/actividad`
+- Feed de notificaciones segmentado por rol con purga automática de 30 días
+- Fix historial de capacitaciones para empleados
+- **Total: 207 tests**
+
+### Sprint 13 — Notificaciones personales y cron de vencimiento
+
+- Notificaciones personales por empleado (campo `usuario_id`)
+- Cron job diario: `POST /auditorias/verificar-vencidas` con API Key
+- `POST /auth/login` devuelve `id` del usuario
+- **Total: 228 tests**
+
+### Sprint 14 — Seguridad y calidad (228 → 308 tests)
+
+- Reset de contraseña seguro: token 64 chars, uso único, expira 24h
+- FURAT con datos reales (ciudad, dirección, tipo_vinculación)
+- Analytics optimizado con SQL puro
+- Validación de límites de paginación en todos los endpoints
+- Enums en todos los schemas de entrada
+- **+80 tests | Cobertura: 91% → 93%**
+
+### Sprint 15 — Hardening de seguridad (308 → 440 tests)
+
+- Rate limiting: `/auth/login` 5/min, `/chat/mensaje` 20/min
+- Tests de routers completos (incidente, capacitación, chat, área, cargo, email, IA)
+- 0 CVEs en dependencias de la app (verificado con pip-audit)
+- CORS verificado: no usa `*` en producción
+- **+132 tests | Cobertura: 93%+**
+
+### Sprint 16 — Hardening de rate limiting y notificaciones reales
+
+- Bug crítico corregido: rate limiting estaba desactivado en producción por `ENVIRONMENT=development`
+- Límites hardcoded en código (no configurables por entorno)
+- `IncidenteResponse` expone `creado_por_id` para el frontend
+- Feed de notificaciones refleja el rol real del creador del incidente
+- **440 tests | Sin regresiones**
+
+### Sprint 17 — Rediseño visual de documentos y fix FURAT
+
+- Rediseño profesional del reporte ejecutivo PDF (paleta corporativa, tarjetas KPI, tablas con colores)
+- Rediseño profesional del reporte Excel (cabeceras navy, celdas semánticas, sin gridlines)
+- Rediseño del FURAT PDF (tricolor colombiana, bandas de sección, firma profesional)
+- Rediseño del certificado de capacitación (horizontal, bordes dorados, fondo crema)
+- Fix: FURAT sección 2 mostraba "No registrado" cuando el empleado creaba su propio reporte — corregido con fallback `trabajador_afectado_id or reportado_por_id`
+- **440 tests | CI pasando al 100%**
+
 ---
 
 ## 5. Cobertura de Tests y Calidad
@@ -339,10 +427,10 @@ Todos requieren header `X-Admin-Key`.
 
 | Métrica | Valor |
 |---------|-------|
-| Tests totales | 176 |
-| Tests pasando | 176 (100%) |
-| Cobertura global | 90% |
-| Servicios a 100% | auth, incidente, riesgo, auditoria, furat, metricas, audit |
+| Tests totales | 440 |
+| Tests pasando | 440 (100%) |
+| Cobertura global | 93% |
+| Servicios a 100% | auth, incidente, riesgo, auditoria, furat, metricas, audit, capacitacion, usuario, analytics |
 
 ### 5.2 Tipos de tests
 
@@ -373,18 +461,32 @@ def test_crear_sst_duplicado(client):
 
 | Archivo | Módulo | Tests |
 |---------|--------|-------|
-| `test_auth.py` | Endpoints HTTP de auth | 5 |
-| `test_auth_service.py` | Lógica de autenticación | 25 |
-| `test_incidente_service.py` | Incidentes, investigaciones, acciones | 18 |
-| `test_riesgo_service.py` | Peligros, evaluaciones, medidas | 18 |
-| `test_capacitacion_service.py` | Capacitaciones, sesiones, asistencia, evaluaciones | 22 |
-| `test_auditoria_service.py` | Auditorías, hallazgos, no conformidades | 18 |
-| `test_usuario_service.py` | Usuarios — CRUD, área, cargo, filtros | 26 |
-| `test_admin_router.py` | Endpoints HTTP de administración | 16 |
-| `test_furat_service.py` | Generación PDF FURAT | 6 |
-| `test_metricas_service.py` | KPIs, dashboard, alertas, PDF, Excel | 20 |
+| `test_auth.py` | Endpoints HTTP de auth: login, register, forgot/reset, cambiar password, refresh, logout | 20 |
+| `test_auth_service.py` | Lógica de autenticación: login, refresh, reset token seguro, empresa activa | 34 |
+| `test_incidente_service.py` | Incidentes, investigaciones, acciones correctivas | 18 |
+| `test_riesgo_service.py` | Peligros, evaluaciones, medidas de control | 18 |
+| `test_capacitacion_service.py` | Capacitaciones, sesiones, asistencia, evaluaciones, certificado PDF | 41 |
+| `test_auditoria_service.py` | Auditorías, hallazgos, no conformidades | 24 |
+| `test_usuario_service.py` | Usuarios — CRUD, área, cargo, filtros | 20 |
+| `test_admin_router.py` | Endpoints HTTP de administración con X-Admin-Key | 18 |
+| `test_furat_service.py` | PDF FURAT con datos reales + helper `_obtener_datos_furat` | 10 |
+| `test_metricas_service.py` | KPIs, dashboard, alertas, PDF y Excel ejecutivos | 20 |
+| `test_deps.py` | Autenticación HTTP: token inválido, sesión inválida, rol insuficiente | 8 |
 | `test_metricas.py` | Endpoints HTTP de métricas | 2 |
 | `test_usuarios.py` | Endpoints HTTP de usuarios | 6 |
+| `test_analytics_service.py` | Analytics: agregaciones SQL, paginación, filtros, multi-tenancy | 16 |
+| `test_api_keys.py` | CRUD de API keys y autenticación con X-API-Key | 14 |
+| `test_perfil_notificaciones.py` | Perfil propio y notificaciones | 15 |
+| `test_routers.py` | Límites de paginación: 422 en exceso, 200 en válido | 15 |
+| `test_schemas.py` | Validación Enum en schemas: tipo, estado, severidad, prioridad | 24 |
+| `test_migrations.py` | Integridad estructural de migraciones Alembic (sin BD) | 10 |
+| `test_email_service.py` | Correos transaccionales con mocks de httpx | 13 |
+| `test_ai_service.py` | Servicio IA (Gemini): contexto, historial, errores | 15 |
+| `test_chat_router.py` | Endpoints HTTP del chat SASBOT | 16 |
+| `test_capacitacion_router.py` | Endpoints HTTP de capacitaciones | 20 |
+| `test_area_router.py` | Endpoints HTTP de áreas | 9 |
+| `test_cargo_router.py` | Endpoints HTTP de cargos | 8 |
+| `test_incidente_router.py` | Endpoints HTTP de incidentes, FURAT | 26 |
 
 ### 5.4 Cómo correr los tests
 
@@ -467,13 +569,21 @@ El mock de correo fallido (`return_value=False`) verifica que el sistema no expl
 
 ## 7. Próximos Pasos y Recomendaciones
 
-### 7.1 Cobertura pendiente
+### 7.1 Cobertura actual — módulos principales
 
-| Módulo | Cobertura | Recomendación |
-|--------|-----------|---------------|
-| `email_service` | 32% | Mock de la librería Resend |
-| `deps.py` | 38% | Tests HTTP con JWT válidos |
-| `ai_service` | 44% | Mock de la respuesta de Gemini |
+| Módulo | Cobertura |
+|--------|-----------|
+| `auth_service` | 100% |
+| `incidente_service` | 100% |
+| `riesgo_service` | 100% |
+| `auditoria_service` | 100% |
+| `metricas_service` | 100% |
+| `furat_service` | 100% |
+| `capacitacion_service` | 100% |
+| `email_service` | 95%+ |
+| `ai_service` | 90%+ |
+| `deps.py` | 100% |
+| **Global** | **93%** |
 
 ### 7.2 Mejoras técnicas recomendadas
 
@@ -501,10 +611,10 @@ El mock de correo fallido (`return_value=False`) verifica que el sistema no expl
 - **Dependabot** abre PRs automáticos semanales para CVEs
 - **Pre-commit hooks** garantizan código formateado en cada commit
 - **GitHub Actions** corre en cada push — si los tests fallan, el CI lo indica
-- Antes de cada deploy: `.\venv\Scripts\python.exe -m pytest` para confirmar los 176 tests
+- Antes de cada deploy: `.\venv\Scripts\python.exe -m pytest` para confirmar los 440 tests
 
 ---
 
-*Documento preparado el 2026-05-31*
+*Documento preparado el 2026-07-01*
 *Proyecto PISST — SENA*
 *Backend desarrollado por Barner Acosta*

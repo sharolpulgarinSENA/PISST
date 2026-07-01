@@ -1,6 +1,6 @@
 # Documentación Técnica — PISST
 ## Plataforma Integral de Seguridad y Salud en el Trabajo
-**Versión:** 2.1 | **Fecha:** 2026-06-13 | **Estado:** Producción
+**Versión:** 2.2 | **Fecha:** 2026-07-01 | **Estado:** Producción
 
 ---
 
@@ -787,6 +787,44 @@ Todos los errores retornan:
 
 ## 8. Historial de Cambios
 
+### Sprint 17 — Rediseño visual de documentos y fix FURAT
+
+#### 17.1 Rediseño profesional de reportes y certificados
+
+Todos los documentos descargables fueron rediseñados con una paleta corporativa unificada (navy `#1B3A5C`, azul `#2563EB`, acento `#0EA5E9`) usando ReportLab con callbacks de canvas para cabeceras y pies de página.
+
+| Documento | Cambios |
+|---|---|
+| Reporte ejecutivo PDF | Tarjetas KPI con colores semánticos (verde/amarillo/rojo/azul), tablas con columna de referencia normativa, pie legal |
+| Reporte Excel | Cabeceras navy, celdas con colores semánticos, sin gridlines, columnas de referencia y observaciones |
+| FURAT PDF | Tricolor colombiana en cabecera, bandas de sección navy con texto blanco, sección de firmas profesional |
+| Certificado de capacitación | Orientación horizontal (landscape), fondo crema `#FFFDF7`, doble borde dorado, nombre del empleado en 30pt |
+
+**Archivos:** `app/services/metricas_service.py`, `app/services/furat_service.py`, `app/services/capacitacion_service.py`
+
+#### 17.2 Fix FURAT sección 2 — "No registrado" al crear reporte propio
+
+Cuando un empleado creaba su propio reporte de incidente, el formulario del frontend no enviaba `trabajador_afectado_id` → campo quedaba `None` → FURAT mostraba "No registrado" en datos del trabajador afectado.
+
+**Fix aplicado en `create_incidente`:**
+
+```python
+# app/services/incidente_service.py, línea 71
+trabajador_afectado_id=datos.trabajador_afectado_id or reportado_por_id,
+```
+
+Si no se especifica trabajador afectado, se asume que es quien reporta. El backend ya soporta recibir un `trabajador_afectado_id` distinto para cuando SST reporta el incidente de otro empleado.
+
+**Archivo:** `app/services/incidente_service.py`
+
+#### 17.3 Fix test Excel — columna de búsqueda incorrecta
+
+El rediseño del Excel usa columna A como margen vacío y columna B para el contenido. El test `test_reporte_excel_contiene_kpis` buscaba en `column=1` (A) → fallo en CI. Corregido a `column=2` (B).
+
+**Archivo:** `tests/test_metricas_service.py`
+
+---
+
 ### Sprint 16 — Notificaciones reales, historial de capacitaciones y hardening de rate limiting
 
 #### 16.1 Notificación `reporte_nuevo` con rol real del creador
@@ -1536,5 +1574,5 @@ Regex exacto: `[!@#$%^&*(),.?\":{}|<>_\-]`
 
 ---
 
-*Documentación actualizada el 2026-06-10*
+*Documentación actualizada el 2026-07-01*
 *Proyecto PISST — SENA*
