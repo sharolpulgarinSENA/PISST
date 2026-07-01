@@ -265,5 +265,6 @@ def test_reporte_excel_contiene_kpis(db, empresa, usuario_sst):
     resultado = metricas_service.generar_reporte_excel(db, empresa.id, "trimestral")
     wb = openpyxl.load_workbook(resultado)
     ws = wb["Reporte PISST"]
-    valores = [ws.cell(row=r, column=1).value for r in range(1, ws.max_row + 1)]
+    # El diseño usa columna B para contenido (columna A es margen)
+    valores = [ws.cell(row=r, column=2).value for r in range(1, ws.max_row + 1)]
     assert any("KPI" in str(v) for v in valores if v)
